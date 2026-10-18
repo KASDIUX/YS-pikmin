@@ -9,7 +9,7 @@ if exist ".venv\Scripts\python.exe" (
 )
 if errorlevel 1 (
   echo.
-  echo Could not start LeafRoute. Python 3.12 is required.
-  echo If port 8765 is busy, close the previous LeafRoute window first.
+  echo Could not start YS-pikmin. Python 3.12 is required.
+  echo If port 8765 is busy, close the previous YS-pikmin window first.
   pause
 )

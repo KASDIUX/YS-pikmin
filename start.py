@@ -11,7 +11,7 @@ from leafroute import __version__
 
 def main():
     root = Path(__file__).resolve().parent
-    parser = argparse.ArgumentParser(description='LeafRoute local GPS route workbench')
+    parser = argparse.ArgumentParser(description='YS-pikmin local GPS route workbench')
     parser.add_argument('--port', type=int, default=8765)
     parser.add_argument('--data-dir', type=Path, default=root/'data')
     parser.add_argument('--no-browser', action='store_true')
@@ -27,15 +27,15 @@ def main():
                     if running_version != __version__:
                         print(f'目前執行的是 v{running_version}；請先關閉舊版，再啟動 v{__version__}。')
                         return 1
-                    print(f'LeafRoute 已在執行：{origin}')
+                    print(f'YS-pikmin 已在執行：{origin}')
                     if not args.no_browser:
                         webbrowser.open(origin)
                     return 0
         except OSError:
             pass
-        print('無法啟動：連接埠可能已被使用。請關閉先前的 LeafRoute，或用 --port 8766。')
+        print('無法啟動：連接埠可能已被使用。請關閉先前的 YS-pikmin，或用 --port 8766。')
         return 1
-    print(f'LeafRoute {__version__} | {app.origin}', flush=True)
+    print(f'YS-pikmin {__version__} | {app.origin}', flush=True)
     print('啟動於預覽模式。保持此視窗開啟；結束請按 Ctrl+C。', flush=True)
     if not args.no_browser:
         threading.Timer(0.5, lambda: webbrowser.open(app.origin)).start()

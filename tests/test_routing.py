@@ -29,7 +29,7 @@ class RoutingTests(unittest.TestCase):
             request, values = build_request([A,B], profile)
             self.assertIn('/routed-'+profile+'/route/v1/driving/121.0000000,25.0000000;',request.full_url)
             self.assertEqual(values,[A,B])
-            self.assertIn('LeafRoute',request.get_header('User-agent'))
+            self.assertIn('YS-pikmin',request.get_header('User-agent'))
 
     def test_round_trip_is_routed_not_a_straight_connector(self):
         _, values=build_request([A,B],'foot',True)

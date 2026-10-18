@@ -135,7 +135,7 @@ async function refresh(){
   try{const s=await api('state');
     if(!editing&&s.route_revision!==routeRevision){const r=await api('route');points=r.points;routeMeta=r.meta;routeRevision=s.route_revision;planEpoch++;drawRoute();}
     render(s);}
-  catch(e){$('notice-text').textContent='無法連接本機程式。請確認 LeafRoute 的啟動視窗仍在執行；手機狀態目前無法確認。';$('notice').classList.add('error');}
+  catch(e){$('notice-text').textContent='無法連接本機程式。請確認 YS-pikmin 的啟動視窗仍在執行；手機狀態目前無法確認。';$('notice').classList.add('error');}
   finally{polling=false;}
 }
 function tab(name){
@@ -189,7 +189,7 @@ bind('demo',async()=>{
 });
 bind('import',()=>$('gpx-file').click());
 $('gpx-file').addEventListener('change',async()=>{const file=$('gpx-file').files[0];if(!file)return;planEpoch++;try{if(file.size>2_000_000)throw new Error('GPX 檔案上限為 2 MB。');const result=await act('import',{gpx:await file.text()});points=result.points;routeMeta=result.meta;routeRevision=result.state.route_revision;drawRoute();map.fitBounds(line.getBounds(),{padding:[45,45],maxZoom:17});setDrawing(false);toast('GPX 已匯入。');}catch(e){toast(e.message,true);}finally{$('gpx-file').value='';}});
-bind('export',async()=>{const response=await fetch('/api/export');if(!response.ok){const error=await response.json();throw new Error(error.error);}const url=URL.createObjectURL(await response.blob());const a=document.createElement('a');a.href=url;a.download='LeafRoute-'+new Date().toISOString().slice(0,10)+'.gpx';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
+bind('export',async()=>{const response=await fetch('/api/export');if(!response.ok){const error=await response.json();throw new Error(error.error);}const url=URL.createObjectURL(await response.blob());const a=document.createElement('a');a.href=url;a.download='YS-pikmin-'+new Date().toISOString().slice(0,10)+'.gpx';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
 function openName(kind){saveKind=kind;$('name-title').textContent=kind==='favorites'?'收藏選定位置':'儲存目前路線';$('save-name').value='';$('name-dialog').showModal();$('save-name').focus();}
 bind('save-favorite',()=>{select(coordinate($('coordinates').value));openName('favorites');});bind('save-route',()=>openName('routes'));
 bind('name-cancel',()=>$('name-dialog').close());

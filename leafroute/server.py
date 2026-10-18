@@ -85,7 +85,7 @@ class App:
                 self.send_header('Referrer-Policy', 'strict-origin-when-cross-origin')
                 self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://tile.openstreetmap.org; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
                 if download:
-                    self.send_header('Content-Disposition', 'attachment; filename="LeafRoute.gpx"')
+                    self.send_header('Content-Disposition', 'attachment; filename="YS-pikmin.gpx"')
                 self.end_headers()
                 try:
                     self.wfile.write(body)

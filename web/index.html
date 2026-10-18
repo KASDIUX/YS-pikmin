@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="leafroute-token" content="__TOKEN__">
-  <title>LeafRoute · 漫步座標</title>
+  <title>YS-pikmin · 漫步座標</title>
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/vendor/leaflet.css"><link rel="stylesheet" href="/style.css?v=0.2.0">
-  <script src="/vendor/leaflet.js" defer></script><script src="/app.js?v=0.2.0" defer></script>
+  <link rel="stylesheet" href="/vendor/leaflet.css"><link rel="stylesheet" href="/style.css?v=0.2.0-ys">
+  <script src="/vendor/leaflet.js" defer></script><script src="/app.js?v=0.2.0-ys" defer></script>
 </head>
 <body>
 <header class="topbar">
-  <a class="brand" href="/"><img src="/icon.svg" alt="" width="40" height="40"><span>LeafRoute<small>漫步座標</small></span></a>
+  <a class="brand" href="/"><img src="/icon.svg" alt="" width="40" height="40"><span>YS-pikmin<small>漫步座標</small></span></a>
   <div class="top-actions"><span id="mode-badge" class="badge"><i></i>預覽模式</span><button id="device-open" class="button outline">連接 iPhone <span>↗</span></button></div>
 </header>
 <main>
@@ -49,7 +49,7 @@
     </aside>
   </div>
   <section class="journey-bar" aria-label="行走狀態"><div class="journey-status"><span id="journey-icon">⌁</span><div><strong id="journey-status">準備出發</strong><small id="journey-detail">新增至少兩個路徑點即可開始</small></div></div><div class="progress-wrap"><div class="progress-label"><span>本趟進度</span><span id="progress-label">0%</span></div><progress id="progress" max="100" value="0"></progress></div><div class="journey-metric"><small>累計移動</small><strong id="traveled">0 <span>m</span></strong></div><div class="journey-metric"><small>完成圈數</small><strong id="laps">0</strong></div></section>
-  <footer><span><img src="/icon.svg" alt="" width="18" height="18"> LeafRoute · 獨立開發的定位工作台</span><span>v0.2.0 · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">回報地圖問題</a> <span class="footer-dot">●</span></span></footer>
+  <footer><span><img src="/icon.svg" alt="" width="18" height="18"> YS-pikmin · 獨立開發的定位工作台</span><span>v0.2.0 · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">回報地圖問題</a> <span class="footer-dot">●</span></span></footer>
 </main>
 <dialog id="device-dialog"><form method="dialog" class="dialog-head"><div><p class="eyebrow">CONNECT YOUR DEVICE</p><h2>連接你的 iPhone</h2></div><button class="icon-button" aria-label="關閉">×</button></form><div class="dialog-body"><p>使用 USB 連接並解鎖手機，在手機上選擇「信任這部電腦」。</p><ol class="setup-list"><li>確認 Windows 的 Apple Devices 看得到手機。</li><li>iOS 16 以上開啟「設定 → 隱私權與安全性 → 開發者模式」。</li><li>iOS 17 以上：以系統管理員身分開啟 <code>Start_Tunnel.cmd</code>，保持視窗開啟。</li><li>若提示開發者映像未掛載，執行 <code>Prepare_Device.cmd</code>。</li></ol><div class="device-picker"><button id="scan" class="button outline">↻ 掃描裝置</button><select id="devices" aria-label="選擇 iPhone"><option value="">請先掃描裝置</option></select></div><p id="device-status" class="helper" role="status">實機相容性需以你的 iOS 版本測試。預覽功能不需要手機。</p><div class="dialog-actions"><button id="disconnect" class="button outline">還原並中斷</button><button id="connect" class="button primary">連接選定裝置</button></div><p class="helper">連線成功不會立即改變位置；按「套用」或「開始」才會傳送座標。Wi-Fi 裝置需先完成配對，且能被 Apple 服務或通道偵測到。</p></div></dialog>
 <dialog id="name-dialog"><form id="name-form"><div class="dialog-head"><h2 id="name-title">儲存收藏</h2><button type="button" id="name-cancel" class="icon-button" aria-label="關閉">×</button></div><div class="dialog-body"><label for="save-name">名稱</label><input id="save-name" maxlength="60" required placeholder="例如：週末散步路線"><div class="dialog-actions"><button class="button primary" type="submit">儲存在本機</button></div></div></form></dialog>

@@ -50,7 +50,7 @@ def build_request(values, profile, round_trip=False):
                        'radiuses': ';'.join(['150']*len(query_points))})
     # The path segment is historical; each routed-* server has its own actual profile.
     url = f'{BASE_URL}/routed-{profile}/route/v1/driving/{coords}?{query}'
-    return Request(url, headers={'User-Agent': 'LeafRoute/0.2.0 (local desktop route planner)',
+    return Request(url, headers={'User-Agent': 'YS-pikmin/0.2.0 (local desktop route planner)',
                                  'Accept': 'application/json'}), query_points
 
 

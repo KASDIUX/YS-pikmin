@@ -104,9 +104,9 @@ def write_gpx(points):
     route = Route(points)
     ns = 'http://www.topografix.com/GPX/1/1'
     ET.register_namespace('', ns)
-    root = ET.Element(f'{{{ns}}}gpx', version='1.1', creator='LeafRoute')
+    root = ET.Element(f'{{{ns}}}gpx', version='1.1', creator='YS-pikmin')
     track = ET.SubElement(root, f'{{{ns}}}trk')
-    ET.SubElement(track, f'{{{ns}}}name').text = 'LeafRoute route'
+    ET.SubElement(track, f'{{{ns}}}name').text = 'YS-pikmin route'
     segment = ET.SubElement(track, f'{{{ns}}}trkseg')
     for lat, lon in route.points:
         ET.SubElement(segment, f'{{{ns}}}trkpt', lat=f'{lat:.8f}', lon=f'{lon:.8f}')

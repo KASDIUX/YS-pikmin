@@ -9,7 +9,7 @@ if errorlevel 1 goto failed
 ".venv\Scripts\python.exe" -m pip install -r requirements-device.txt
 if errorlevel 1 goto failed
 echo.
-echo Done. Run Launch.cmd to open LeafRoute.
+echo Done. Run Launch.cmd to open YS-pikmin.
 pause
 exit /b 0
 :failed

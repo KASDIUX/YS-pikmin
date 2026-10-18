@@ -1,3 +1,3 @@
-"""LeafRoute: a local GPS route workbench."""
+"""YS-pikmin: a local GPS route workbench."""
 
 __version__ = "0.2.0"
