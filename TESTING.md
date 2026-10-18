@@ -39,3 +39,14 @@ v0.2.0 使用獨立本機測試埠驗證「沿道路規劃」：6 個示範途�
 - Pikmin Bloom 內的效果。
 
 裝置模組已匯入成功；tunneld、mounter CLI 選項已對照本機指定版本的 help。沒有為了測試而啟動管理員服務、配對手機或傳送模擬座標。
+
+
+## v0.3.0 一鍵連線驗證
+
+37 項單元測試通過，新增自動連線、取消、重複點擊、多裝置選擇、UAC 失敗、舊版 iOS 跳過通道與重用既有通道測試。
+實機 iOS 26.6.2 USB：從無通道狀態按連接，經 Windows 管理員確認後自動啟動通道並連接成功；停止模擬定位指令已成功送出，手機實際位置需在手機地圖確認。沒有傳送新的測試座標。Wi-Fi 尚未實機驗證。
+
+
+## v0.4.0 EXE 驗證
+
+PyInstaller 6.22.3，Python 3.12.10，Windows x64。37 項單元測試通過。EXE 在 PATH 僅含 Windows System32、不含外部 Python 的子行程中通過：啟動、HTML 與 JS 資源、時區資料、預覽行走與暫停、pymobiledevice3 版本讀取與 USB 裝置掃描。內建 remote tunneld、mounter auto-mount、developer dvt 指令的 help 均成功。未在全新 Windows 電腦測試，也未用此 EXE 傳送新的實機模擬座標。

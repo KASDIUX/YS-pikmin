@@ -24,7 +24,8 @@ def main():
         return 0
     device = devices[choice-1]
     modern = not device['ios'] or int(device['ios'].split('.')[0]) >= 17
-    args = [sys.executable, '-m', 'pymobiledevice3', 'mounter', 'auto-mount',
+    prefix = [sys.executable, '--device-cli'] if getattr(sys, 'frozen', False) else [sys.executable, '-m', 'pymobiledevice3']
+    args = prefix + ['mounter', 'auto-mount',
             '--tunnel' if modern else '--udid', device['id']]
     return subprocess.run(args, check=False).returncode
 

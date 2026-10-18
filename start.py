@@ -1,5 +1,8 @@
 """Run with Python 3.12; preview mode uses the standard library only."""
 import argparse
+import sys
+import os
+import multiprocessing
 from pathlib import Path
 import threading
 import webbrowser
@@ -13,7 +16,8 @@ def main():
     root = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(description='YS-pikmin local GPS route workbench')
     parser.add_argument('--port', type=int, default=8765)
-    parser.add_argument('--data-dir', type=Path, default=root/'data')
+    default_data = Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'YS-pikmin' / 'data' if getattr(sys, 'frozen', False) else root/'data'
+    parser.add_argument('--data-dir', type=Path, default=default_data)
     parser.add_argument('--no-browser', action='store_true')
     args = parser.parse_args()
     try:
@@ -49,4 +53,13 @@ def main():
 
 
 if __name__ == '__main__':
-    raise SystemExit(main())
+    multiprocessing.freeze_support()
+    if len(sys.argv) > 1 and sys.argv[1] == '--device-cli':
+        sys.argv = [sys.argv[0]] + sys.argv[2:]
+        from pymobiledevice3.__main__ import main as device_main
+        device_main()
+    elif len(sys.argv) > 1 and sys.argv[1] == '--prepare-device':
+        from prepare_device import main as prepare_main
+        raise SystemExit(prepare_main())
+    else:
+        raise SystemExit(main())

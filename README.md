@@ -1,15 +1,27 @@
 # YS-pikmin · 漫步座標
 
-Windows 上的本機 GPS 路線工作台，版本 **0.2.0**。獨立編寫並附完整可修改原始碼，沒有使用 BloomWalker 的程式碼、品牌或圖片。
+Windows 上的本機 GPS 路線工作台，版本 **0.4.0**。獨立編寫並附完整可修改原始碼，沒有使用 BloomWalker 的程式碼、品牌或圖片。
+
+## v0.3.0 更新
+
+新增頁首裝置面板、USB／Wi-Fi 篩選、一鍵掃描與通道啟動、背景進度和取消連線。管理員提示仍需使用者確認；Wi-Fi 需先配對。
 
 ## v0.2.0 更新
 
 新增步行／騎車／開車的沿道路規劃、道路回程、途經點保留、路線起點選取，以及避免過期查詢覆蓋新路線的檢查。升級時保留原本的 `data` 資料夾，舊版收藏可繼續載入。先在舊版的啟動視窗按 Ctrl+C 結束，再開啟新版；啟動檔會指出仍在執行的舊版本。
 
-## 先試用
+## Windows EXE（不需安裝 Python）
+
+從 GitHub Releases 下載 `YS-pikmin-v0.4.0-Windows-x64.zip`，完整解壓縮，再雙擊 `Pikmin launch.exe`。旁邊的 `_internal` 資料夾必須保留；不要直接在壓縮檔內執行。這是 Windows x64 版本，啟動後使用瀏覽器介面。主程式視窗需保持開啟。
+
+EXE 已包含 Python 與 pymobiledevice3 9.29.1。手機仍需 Apple Devices 驅動、信任電腦與開發者模式。按「連接 iPhone」即可啟動通道；Windows 管理員提示需自行確認。開發者映像準備可在命令列執行 `"Pikmin launch.exe" --prepare-device`。
+
+EXE 收藏儲存於 `%LOCALAPPDATA%/YS-pikmin/data`；從原始碼版搬移時，可先關閉程式，再將舊版 `data/library.json` 複製到此資料夾。尚未有程式碼簽章，也未在全新 Windows 電腦完整驗證。
+
+## 原始碼版先試用
 
 1. 解壓縮整個資料夾。
-2. 雙擊 **Launch.cmd**。需要 Python 3.12；製作本版的這台電腦已安裝。
+2. 雙擊 **Pikmin launch.cmd**。需要 Python 3.12；製作本版的這台電腦已安裝。
 3. 程式會在瀏覽器開啟 `http://127.0.0.1:8765`。這是你電腦上的介面，不是上傳到網站。
 4. 點「試走一條示範路線」，再點「開始預覽」。保持啟動視窗開啟。
 
@@ -30,14 +42,14 @@ Windows 上的本機 GPS 路線工作台，版本 **0.2.0**。獨立編寫並附
 
 ## 連接 iPhone
 
-本版實機介接針對 **pymobiledevice3 9.29.1** 的 API 編寫，已檢查本機安裝版本的匯入與指令；**尚未用實體 iPhone 驗證**。不同 iOS 版本、Apple 驅動與開發者映像仍需實測。
+本版實機介接針對 **pymobiledevice3 9.29.1** 的 API 編寫，已檢查本機安裝版本的匯入與指令；**已在 iOS 26.6.2 實機驗證 USB 掃描、自動通道、定位服務連線及停止模擬定位指令；尚未驗證遊戲內行走與 Wi-Fi 連線**。不同 iOS 版本、Apple 驅動與開發者映像仍需實測。
 
 1. Windows 安裝 Apple Devices，接上 USB，在 iPhone 選擇「信任這部電腦」，確認 Apple Devices 看得到手機。
 2. iOS 16 以上開啟「設定 → 隱私權與安全性 → 開發者模式」，依手機提示重新啟動並確認。
 3. 若缺少通訊套件，執行 `Install_Device_Support.cmd`。它只在這個資料夾建立 `.venv` 並安裝指定版本，不更新全機的 Python 套件。本機已有相同版本時可先直接試用。
 4. iOS 17 以上：以系統管理員身分執行 `Start_Tunnel.cmd`，保持通道視窗開啟。程式不會替你自動提權。
 5. 如果連線錯誤指出開發者映像未準備好，執行 `Prepare_Device.cmd`，選擇手機。這會透過 pymobiledevice3 下載／掛載開發者映像，可能需要數分鐘。
-6. 開啟 YS-pikmin，點「連接 iPhone → 掃描裝置」，確認裝置名稱及識別碼末六碼，再點「連接選定裝置」。
+6. 只有一部符合連線方式的手機時自動連接；多部時會要求選擇。停止連接可取消等待，或還原定位並中斷裝置連線。背景通道保留供下次使用。
 7. 選點後按「套用」才會傳送位置；按「開始傳送路線」才會移動。畫面座標是工作台預覽或最後成功送出的座標，**不會讀取手機真實 GPS**。
 
 USB 與已配對、可由 Apple 服務或 tunneld 偵測到的 Wi-Fi 裝置都能列入清單。第一版沒有自動無線配對、斷線重連或跨網段連線。
@@ -92,3 +104,8 @@ py -3.12 -m unittest discover -s tests -v
 主程式在 `leafroute/`，前端在 `web/`，裝置介接在 `leafroute/device.py`。預覽運算與裝置 I/O 分離，沒有每次更新都啟動一個 Python 程序。
 
 驗證紀錄見 `TESTING.md`。測試中的手機為替身，不代表真實 iPhone 已通過驗證。
+
+
+## 地圖當地時間
+
+點選地圖或載入收藏位置時，地圖資訊卡會顯示選定座標的 IANA 時區、當地日期、每秒更新的時間與目前 UTC 時差。不需要套用手機定位。查詢使用隨程式附帶的 @photostructure/tz-lookup 11.7.0（CC0-1.0）；座標不會為此傳送到外部服務。時間依電腦時鐘，日光節約時間規則依瀏覽器資料；時區邊界附近屬近似判定。來源：https://github.com/photostructure/tz-lookup 。授權見 web/vendor/TIMEZONE-LICENSE；查詢程式嵌入 app.js，保留來源於 web/vendor/timezone-lookup.js。

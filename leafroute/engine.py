@@ -5,6 +5,7 @@ import time
 import uuid
 
 from .device import Device, discover, friendly_error, package_version
+from .tunnel import ensure_tunnel
 from .geo import Route, destination, distance, point, read_gpx
 from .routing import RoadPlanner, route_meta
 
@@ -33,6 +34,9 @@ class Engine:
         self.error = False
         self.last_time = time.monotonic()
         self.closed = False
+        self.connection_task = None
+        self.connection_phase = "idle"
+        self.connection_message = "尚未連接裝置"
 
     def snapshot(self):
         total = self.play_route.length if self.play_route else (self.route.length if self.route else 0)
@@ -44,7 +48,8 @@ class Engine:
                 'point_count': len(self.route.points) if self.route else 0,
                 'traveled': self.traveled, 'laps': self.laps, 'message': self.message,
                 'error': self.error, 'simulation_active': self.device.active,
-                'package_version': package_version()}
+                'package_version': package_version(), 'devices': self.devices,
+                'connection_phase': self.connection_phase, 'connection_message': self.connection_message}
 
     async def _apply(self, position):
         if self.mode == 'device':
@@ -73,7 +78,68 @@ class Engine:
         self.laps = 0
         self.status = 'idle'
 
+    async def _auto_connect(self, transport, selected_id):
+        try:
+            result = await discover(transport)
+            self.devices = result['devices']
+            choices = self.devices
+            if selected_id:
+                choices = [d for d in choices if d['id'] == selected_id]
+            if not choices:
+                raise ValueError('未找到此連線方式的 iPhone。請接上 USB、解鎖並信任電腦；Wi-Fi 需先完成配對。')
+            if len(choices) > 1:
+                self.connection_phase = 'choose'
+                self.connection_message = '找到多部 iPhone，請選擇要連接的裝置，再按連接。'
+                return
+            target = choices[0]
+            def report(message):
+                self.connection_message = message
+            if not target.get('ios') or int(target['ios'].split('.')[0]) >= 17:
+                await asyncio.wait_for(ensure_tunnel(target['id'], report), 90)
+            report('正在建立定位服務連線…')
+            async with self.lock:
+                await self._command('connect', {'id': target['id']})
+                if self.device.active:
+                    await asyncio.wait_for(self.device.clear(), 5)
+                self.connection_phase = 'connected'
+                self.connection_message = '已連接 ' + target['name'] + ' · ' + target['transport']
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            if self.connected:
+                await self.device.close()
+                self.connected = False
+            self.connection_phase = 'error'
+            self.connection_message = friendly_error(exc)
+        finally:
+            if self.connection_phase == 'connecting':
+                self.connection_phase = 'idle'
+
     async def command(self, action, data):
+        if action == 'auto-connect':
+            async with self.lock:
+                self._not_running()
+                if self.connected or (self.connection_task and not self.connection_task.done()):
+                    return self.snapshot()
+                transport = data.get('transport', 'USB')
+                if transport not in ('USB', 'Network'):
+                    raise ValueError('不支援的連線方式。')
+                self.connection_phase = 'connecting'
+                self.connection_message = '正在掃描 iPhone…'
+                self.connection_task = asyncio.create_task(self._auto_connect(transport, data.get('id')))
+                return self.snapshot()
+        if action == 'disconnect':
+            task = self.connection_task
+            if task and not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+            self.connection_phase = 'idle'
+            self.connection_message = '已停止連接'
+        elif self.connection_task and not self.connection_task.done() and action in ('connect', 'scan', 'start', 'position', 'nudge'):
+            raise ValueError('正在連接手機，請等待完成或按停止連接。')
         if action == 'plan':
             # Network I/O must never hold the device/control lock: stop stays responsive.
             async with self.lock:
@@ -95,6 +161,9 @@ class Engine:
                     self.status = 'paused'
                 self.error = True
                 self.message = friendly_error(exc)
+                if action == 'disconnect':
+                    self.connection_phase = 'error'
+                    self.connection_message = self.message
                 raise ValueError(self.message) from exc
 
     async def _command(self, action, data):
@@ -287,6 +356,12 @@ class Engine:
                 self.last_time = time.monotonic()
 
     async def shutdown(self):
+        if self.connection_task and not self.connection_task.done():
+            self.connection_task.cancel()
+            try:
+                await self.connection_task
+            except asyncio.CancelledError:
+                pass
         async with self.lock:
             self.closed = True
             self.status = 'idle'

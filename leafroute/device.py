@@ -33,7 +33,7 @@ def same_id(a, b):
     return a.replace('-', '').lower() == b.replace('-', '').lower()
 
 
-async def discover():
+async def discover(transport=None):
     version = package_version()
     if version != SUPPORTED_VERSION:
         return {'devices': [], 'warning': f'手機模式需要 pymobiledevice3 {SUPPORTED_VERSION}（目前：{version or "未安裝"}）。請執行 Install_Device_Support.cmd。'}
@@ -53,6 +53,8 @@ async def discover():
 
     try:
         muxes = await asyncio.wait_for(list_devices(), 4)
+        if transport:
+            muxes = [m for m in muxes if m.connection_type == transport]
         entries = await asyncio.gather(*(asyncio.wait_for(inspect(m), 5) for m in muxes[:8]), return_exceptions=True)
         for entry in entries:
             if isinstance(entry, dict):
@@ -64,7 +66,7 @@ async def discover():
     try:
         tunnels = await asyncio.to_thread(read_tunnels)
         for udid, details in tunnels.items():
-            if details and not any(same_id(udid, key) for key in devices):
+            if transport is None and details and not any(same_id(udid, key) for key in devices):
                 devices[udid] = {'id': udid, 'name': 'iPhone（通道已就緒）', 'ios': '', 'transport': 'Tunnel'}
         tunnel_ready = bool(tunnels)
     except Exception:
