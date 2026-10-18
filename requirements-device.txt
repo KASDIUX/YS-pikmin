@@ -1,0 +1,3 @@
+# Optional: preview mode uses only Python's standard library.
+# API compatibility was checked against this installed release.
+pymobiledevice3==9.29.1
