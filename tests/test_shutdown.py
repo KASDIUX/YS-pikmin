@@ -79,6 +79,7 @@ class LifecycleTests(unittest.TestCase):
     def test_console_close_uses_cleanup_but_ctrl_c_uses_python(self):
         calls=[]
         with ConsoleCloseHandler(lambda:calls.append('close')) as handler:
+            if handler.callback is None:self.skipTest('No console attached in windowed/test host')
             self.assertFalse(handler.callback(0))
             self.assertTrue(handler.callback(2))
         self.assertEqual(calls,['close'])
@@ -95,7 +96,9 @@ class AppCloseTests(unittest.TestCase):
         try:
             with patch('leafroute.lifecycle.close_owned_tunnels',side_effect=lambda **_:events.append('tunnel-close')):
                 if os.name=='nt':
-                    with ConsoleCloseHandler(app.close) as handler:handler.callback(2)
+                    with ConsoleCloseHandler(app.close) as handler:
+                        if handler.callback:handler.callback(2)
+                        else:app.close()
                 else:app.close()
                 app.close()
             self.assertEqual(events,['reset','device-close','tunnel-close'])

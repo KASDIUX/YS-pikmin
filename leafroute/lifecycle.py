@@ -32,7 +32,7 @@ class HelperLease:
 def valid_lease(folder):
     try:
         age = time.time()-(folder/'lease').stat().st_mtime
-        return not (folder/'stop').exists() and 0 <= age < 4
+        return not (folder/'stop').exists() and -.5 <= age < 4
     except OSError:
         return False
 
@@ -134,6 +134,9 @@ class ConsoleCloseHandler:
     def __enter__(self):
         if os.name == 'nt':
             from ctypes import wintypes
+            kernel=ctypes.WinDLL('kernel32',use_last_error=True)
+            kernel.GetConsoleWindow.restype=wintypes.HWND
+            if not kernel.GetConsoleWindow():return self
             callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL,wintypes.DWORD)
             self.kernel = ctypes.WinDLL('kernel32',use_last_error=True)
             self.kernel.SetConsoleCtrlHandler.argtypes = [callback_type,wintypes.BOOL]

@@ -84,3 +84,12 @@ PyInstaller 6.22.3，Python 3.12.10，Windows x64。37 項單元測試通過。E
 原始碼與打包 EXE 均實際啟動 tunneld helper，終止測試父程序後，helper 在心跳仍持續的情況下偵測父程序已退出並正常結束（exit 0）。主程式 EXE 也通過不含外部 Python PATH 的啟動、預覽、分類收藏與裝置工具載入測試。此輪 USB 掃描 0 支，未傳送實機座標，未以手機實際定位驗證關閉時的還原結果。
 
 Windows 主程式視窗 X 的清理路徑由 SetConsoleCtrlHandler 註冊，透過回呼模擬驗證 App.close()；強制終止無法保證手機定位可還原，背景 helper 則以父程序控制代碼與心跳自行退出，逾時只強制結束自身。瀏覽器分頁關閉不會結束主程式。
+
+
+## v0.7.0 獨立桌面視窗
+
+pywebview 6.1、pythonnet 3.2.1、clr_loader 0.3.1；本機 WebView2 155.0.4283.62。67 項測試執行完成，66 項通過、1 項因測試宿主無主控台而略過（桌面模式不需主控台）。測試新增視窗關閉清理、元件缺失、渲染器失敗清理、無標準輸出的檔案診斷；亦修正 Windows 請求拒絕時的 TCP reset，以及 NTFS 微小未來時間戳造成心跳誤判。
+
+原始碼及真正打包的 windowed EXE 均啟動獨立 YS-pikmin 視窗，Windows 輔助功能樹可讀取地圖、步調、搖桿、收藏及 v0.7.0。以原生 Alt+F4 關閉後，本機測試埠已釋放、原始碼行程 exit 0、EXE 行程也完全結束。原生截圖工具逾時，本次未保存視窗截圖。
+
+EXE 在無外部 Python PATH 環境通過 headless 啟動、預覽、住家、搖桿、分類收藏、USB 掃描（1 支）、內建 CLI 與 helper 載入。未傳送實機座標。此版需目標電腦安裝 WebView2，EXE 已包含 Python 與 UI 元件，不需另外安裝 Python。

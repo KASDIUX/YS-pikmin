@@ -1,6 +1,12 @@
 # YS-pikmin · 漫步座標
 
-Windows 上的本機 GPS 路線工作台，版本 **0.6.2**。獨立編寫並附完整可修改原始碼，沒有使用 BloomWalker 的程式碼、品牌或圖片。
+Windows 上的本機 GPS 路線工作台，版本 **0.7.0**。獨立編寫並附完整可修改原始碼，沒有使用 BloomWalker 的程式碼、品牌或圖片。
+
+## v0.7.0 更新
+
+預設改成獨立 Windows 桌面視窗，不再自動開啟外部瀏覽器或黑色啟動視窗。關閉 YS-pikmin 視窗會停止工作台、嘗試還原定位並清理本次啟動的通道。介面仍在電腦本機運行，地圖圖磚與沿道路查詢仍需網路。需要 Microsoft Edge WebView2 執行階段；本機已安裝，其他電腦若缺少請從 Microsoft 官方安裝。啟動錯誤會顯示訊息，診斷紀錄在 `%LOCALAPPDATA%/YS-pikmin/logs`。
+
+原始碼版另需安裝 `requirements-ui.txt`。`--browser` 可手動使用外部瀏覽器，`--headless`（或舊的 `--no-browser`）只啟動後端供測試。
 
 ## v0.6.2 更新
 
@@ -30,7 +36,7 @@ Windows 上的本機 GPS 路線工作台，版本 **0.6.2**。獨立編寫並附
 
 ## Windows EXE（不需安裝 Python）
 
-從 GitHub Releases 下載 `YS-pikmin-v0.6.2-Windows-x64.zip`，完整解壓縮，再雙擊 `Pikmin launch.exe`。旁邊的 `程式資料` 資料夾必須保留；不要直接在壓縮檔內執行。這是 Windows x64 版本，啟動後使用瀏覽器介面。主程式視窗需保持開啟。
+從 GitHub Releases 下載 `YS-pikmin-v0.7.0-Windows-x64.zip`，完整解壓縮，再雙擊 `Pikmin launch.exe`。旁邊的 `程式資料` 資料夾必須保留；不要直接在壓縮檔內執行。這是 Windows x64 版本，啟動後直接顯示獨立桌面視窗；關閉此視窗會結束程式。
 
 EXE 已包含 Python 與 pymobiledevice3 9.29.1。手機仍需 Apple Devices 驅動、信任電腦與開發者模式。按「連接 iPhone」即可啟動通道；Windows 管理員提示需自行確認。開發者映像準備可在命令列執行 `"Pikmin launch.exe" --prepare-device`。
 
@@ -40,7 +46,7 @@ EXE 收藏儲存於 `%LOCALAPPDATA%/YS-pikmin/data`；從原始碼版搬移時�
 
 1. 解壓縮整個資料夾。
 2. 雙擊 **Pikmin launch.cmd**。需要 Python 3.12；製作本版的這台電腦已安裝。
-3. 程式會在瀏覽器開啟 `http://127.0.0.1:8765`。這是你電腦上的介面，不是上傳到網站。
+3. 先以 `python -m pip install -r requirements-ui.txt` 安裝視窗元件，啟動後會直接顯示 YS-pikmin 桌面視窗。
 4. 在地圖繪製或匯入路線，再點「開始」。保持啟動視窗開啟。
 
 預覽模式不會改變手機位置。即使完全未安裝 iPhone 通訊套件，也能畫路線、預覽、儲存及交換 GPX。

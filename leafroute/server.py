@@ -119,11 +119,23 @@ class App:
                 except ValueError as exc:
                     self.respond(400, {'error': str(exc)})
 
+            def reject_post(self,status,message):
+                # Drain only small rejected bodies, with a deadline, to avoid a Windows
+                # TCP reset replacing the intended rejection response. No action is run.
+                try:
+                    length=int(self.headers.get('Content-Length','0'))
+                    if 0<length<=4096:
+                        self.connection.settimeout(.2)
+                        self.rfile.read(length)
+                except (ValueError,OSError):
+                    pass
+                return self.respond(status,{'error':message})
+
             def do_POST(self):
                 if app.closing:
                     return self.respond(503, {'error': '程式正在結束，請稍候。'})
                 if not self.valid_origin() or not hmac.compare_digest(self.headers.get('X-LeafRoute-Token', ''), app.token):
-                    return self.respond(403, {'error': '驗證失敗，請重新整理頁面。'})
+                    return self.reject_post(403,'驗證失敗，請重新整理頁面。')
                 try:
                     length = int(self.headers.get('Content-Length', '0'))
                     if not 0 < length <= 2_100_000:
