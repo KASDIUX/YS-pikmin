@@ -5,8 +5,8 @@
   <meta name="leafroute-token" content="__TOKEN__">
   <title>YS-pikmin · 漫步座標</title>
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/vendor/leaflet.css"><link rel="stylesheet" href="/style.css?v=0.6.1">
-  <script src="/vendor/leaflet.js" defer></script><script src="/app.js?v=0.6.0" defer></script>
+  <link rel="stylesheet" href="/vendor/leaflet.css"><link rel="stylesheet" href="/style.css?v=0.7.1">
+  <script src="/vendor/leaflet.js" defer></script><script src="/app.js?v=0.7.1" defer></script>
 </head>
 <body>
 <header class="topbar">
@@ -42,7 +42,7 @@
           <label for="coordinates">緯度、經度</label><div class="input-row"><input id="coordinates" value="25.033964, 121.564468" spellcheck="false" placeholder="25.033964, 121.564468"><button id="go" class="button dark" title="套用選定位置">套用</button></div>
           <p class="helper" id="selection-help">地圖選點後按「套用」，才會更新位置。</p><div class="home-actions"><button id="set-home" class="button outline">⌂ 設定住家</button><button id="go-home" class="button outline" disabled>傳送回家</button></div><p id="home-status" class="helper" role="status">尚未設定住家。請先選點，再按「設定住家」。</p><p class="helper home-hint">設定住家不會移動手機；傳送回家會移到儲存座標，不代表還原真實 GPS。</p>
         </section>
-        <section class="control-section"><div class="section-label"><span>02</span><h2>安排路線</h2><span id="point-count" class="tiny-badge">0 個點</span></div>
+        <section class="control-section route-section"><div class="section-label"><span>02</span><h2>安排路線</h2><span id="point-count" class="tiny-badge">0 個點</span></div>
           <div class="route-tools"><button id="import" class="button outline">↥ 匯入 GPX</button><button id="export" class="button outline">↧ 匯出</button><input id="gpx-file" type="file" accept=".gpx,application/gpx+xml" hidden></div>
           <div class="road-tools"><select id="road-profile" aria-label="道路規劃模式"><option value="foot">步行道路</option><option value="bike">騎車道路</option><option value="car">開車道路</option></select><button id="plan-road" class="button outline">⌁ 沿道路規劃</button></div>
           <p class="helper routing-privacy">按下規劃會將途經點送至 <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noopener">FOSSGIS / OSRM</a>。先畫 2～25 個點，回程也可一起規劃。</p>
@@ -57,9 +57,10 @@
     </div>
   </div>
   <section class="journey-bar" aria-label="行走狀態"><div class="journey-status"><span id="journey-icon">⌁</span><div><strong id="journey-status">準備出發</strong><small id="journey-detail">新增至少兩個路徑點即可開始</small></div></div><div class="progress-wrap"><div class="progress-label"><span>本趟進度</span><span id="progress-label">0%</span></div><progress id="progress" max="100" value="0"></progress></div><div class="journey-metric"><small>累計移動</small><strong id="traveled">0 <span>m</span></strong></div><div class="journey-metric"><small>完成圈數</small><strong id="laps">0</strong></div></section>
-  <footer><span><img src="/icon.svg" alt="" width="18" height="18"> YS-pikmin · 獨立開發的定位工作台</span><span>v0.7.0 · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">回報地圖問題</a> <span class="footer-dot">●</span></span></footer>
+  <footer><span><img src="/icon.svg" alt="" width="18" height="18"> YS-pikmin · 獨立開發的定位工作台</span><span>v0.7.1 · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">回報地圖問題</a> <span class="footer-dot">●</span></span></footer>
 </main>
 <dialog id="device-dialog"><form method="dialog" class="dialog-head"><h2>連接 iPhone</h2><button class="icon-button" aria-label="關閉">×</button></form><div class="dialog-body"><p>接上 USB、解鎖 iPhone，並信任這部電腦。Windows 需安裝 Apple Devices，iPhone 需開啟開發者模式。</p><p>按「連接 iPhone」會自動掃描裝置並準備通道。若出現 Windows 管理員確認，請選擇「是」。不必另外開啟 Start_Tunnel.cmd。</p><p>Wi-Fi 需要事先配對並能被 Apple 裝置服務偵測。多部手機同時在線時，請選擇要連接的裝置再按連接。</p><p>停止連接會取消連線作業；已連接時會先還原模擬定位再中斷。主程式運作期間通道可繼續使用；關閉主程式視窗時會清理本次啟動的通道，既有外部通道不受影響。若已取消連線，請關閉仍顯示的管理員提示。</p><p>若缺少通訊套件或開發者映像，依錯誤提示執行 Install_Device_Support.cmd 或 Prepare_Device.cmd。連線成功不會自動傳送座標。</p></div></dialog>
 <dialog id="name-dialog"><form id="name-form"><div class="dialog-head"><h2 id="name-title">儲存收藏</h2><button type="button" id="name-cancel" class="icon-button" aria-label="關閉">×</button></div><div class="dialog-body"><fieldset id="favorite-category" class="favorite-category"><legend>收藏類型</legend><div class="favorite-type-options"><label><input type="radio" name="favorite-type" value="mushroom"><span><b>🍄</b>菇點</span></label><label><input type="radio" name="favorite-type" value="postcard"><span><b>✉</b>明信片</span></label><label><input type="radio" name="favorite-type" value="point" checked><span><b>⌖</b>純點</span></label></div><p class="helper">選擇分類，方便下次找到位置。</p></fieldset><label for="save-name">名稱</label><input id="save-name" maxlength="60" required placeholder="例如：週末散步路線"><div class="dialog-actions"><button class="button primary" type="submit">儲存在本機</button></div></div></form></dialog>
 <div id="toast" class="toast" role="status" hidden></div>
 </body></html>
+

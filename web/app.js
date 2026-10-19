@@ -287,7 +287,7 @@ function stopJoystick(){
 }
 function setStick(x,y){
   if($('joystick').getAttribute('aria-disabled')==='true')return;
-  const radius=60,length=Math.hypot(x,y),scale=length>radius?radius/length:1;
+  const radius=Math.max(1,($('joystick').clientWidth-$('joystick-knob').offsetWidth)/2-2),length=Math.hypot(x,y),scale=length>radius?radius/length:1;
   x*=scale;y*=scale;
   $('joystick-knob').style.transform=`translate(${x}px,${y}px)`;
   const strength=Math.min(1,length/radius);

@@ -62,3 +62,43 @@
 @media(min-width:1400px){main{max-width:1760px;padding-left:3%;padding-right:3%}.workspace{grid-template-columns:minmax(0,1fr) 330px}}
 @media(max-width:1050px){.workspace{grid-template-columns:minmax(0,1fr) 290px}.side-column .timezone-card{padding:18px}.side-column .timezone-card time{font-size:32px}}
 @media(max-width:760px){.workspace{grid-template-columns:1fr}.workspace .map-wrap{height:clamp(480px,65vh,680px)}.side-column{gap:14px}.side-column .timezone-card{padding:18px 20px}.side-column .timezone-card time{font-size:32px}}
+
+/* Keep the original route layout; make the four actions easier to read. */
+.route-section .route-links{gap:8px}
+.route-section .route-links button{font-size:14px;min-height:36px;padding:6px 0}
+
+/* Align the bottoms of both desktop columns; keep stacked screens natural. */
+@media(min-width:761px){
+  .workspace{align-items:stretch}
+  .map-column{grid-template-rows:auto minmax(0,1fr)}
+  .side-column{grid-template-rows:auto minmax(0,1fr)}
+  .side-column .control-panel{display:flex;flex-direction:column}
+  .side-column .tabs{flex-shrink:0}
+  #panel-route{flex:1;display:flex;flex-direction:column}
+  #panel-route>.control-section:first-child{flex-shrink:0}
+  #panel-route>.route-section{flex:1;display:flex;flex-direction:column}
+  .route-section .route-summary{flex:1;align-content:center;min-height:86px}
+  .route-section .route-links{margin-top:auto}
+}
+
+/* Compact movement controls; use spare column height for the map. */
+.movement-controls>section{padding:18px}
+.movement-controls .section-label{margin-bottom:12px}
+.joystick-body{grid-template-columns:128px minmax(0,1fr);gap:12px}
+.movement-controls .joystick{width:128px;height:128px;margin:4px 0}
+.movement-controls .joystick-knob{width:44px;height:44px;left:41px;top:41px;font-size:22px}
+.movement-controls .joystick-n,.movement-controls .joystick-s{left:57px}
+.movement-controls .joystick-w,.movement-controls .joystick-e{top:56px}
+.movement-controls .speed-input{margin-top:12px}
+.joystick-settings .speed-input{margin-top:0;flex-wrap:wrap}
+.joystick-settings .speed-input label{flex-basis:100%}
+.movement-controls .playback{margin-top:14px}
+.movement-controls .restore-button{padding-top:10px}
+@media(min-width:761px){
+  .map-column{grid-template-rows:minmax(0,1fr) auto}
+  .map-panel{display:flex;flex-direction:column}
+  .map-toolbar,.map-bottom{flex-shrink:0}
+  .workspace .map-wrap{flex:1;min-height:clamp(560px,70vh,820px)}
+  .route-section .route-summary{flex:0;align-content:start}
+}
+@media(max-width:380px){.joystick-body{grid-template-columns:1fr}.movement-controls .joystick{margin:0 auto 8px}}
