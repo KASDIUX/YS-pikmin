@@ -6,6 +6,7 @@ import uuid
 
 from .device import Device, discover, friendly_error, package_version
 from .tunnel import ensure_tunnel
+from .wifi import discover_wifi_ip, private_ipv4
 from .geo import Route, destination, distance, point, read_gpx
 from .routing import RoadPlanner, route_meta
 
@@ -49,7 +50,7 @@ class Engine:
                 'traveled': self.traveled, 'laps': self.laps, 'message': self.message,
                 'error': self.error, 'simulation_active': self.device.active,
                 'package_version': package_version(), 'devices': self.devices,
-                'connection_phase': self.connection_phase, 'connection_message': self.connection_message}
+                'wifi_host': (self.store.data.get('wifi_device') or {}).get('host',''), 'connection_phase': self.connection_phase, 'connection_message': self.connection_message}
 
     async def _apply(self, position):
         if self.mode == 'device':
@@ -78,10 +79,17 @@ class Engine:
         self.laps = 0
         self.status = 'idle'
 
-    async def _auto_connect(self, transport, selected_id):
+    async def _auto_connect(self, transport, selected_id, host=None):
         try:
-            result = await discover(transport)
-            self.devices = result['devices']
+            if transport == 'Network' and host:
+                target = await discover_wifi_ip(host, self.store.data.get('wifi_device'))
+                updated = copy.deepcopy(self.store.data)
+                updated['wifi_device'] = target
+                self.store.save(updated)
+                self.devices = [target]
+            else:
+                result = await discover(transport)
+                self.devices = result['devices']
             choices = self.devices
             if selected_id:
                 choices = [d for d in choices if d['id'] == selected_id]
@@ -94,9 +102,9 @@ class Engine:
             target = choices[0]
             def report(message):
                 self.connection_message = message
-            if not target.get('ios') or int(target['ios'].split('.')[0]) >= 17:
+            if target['transport'] != 'WiFiIP' and (not target.get('ios') or int(target['ios'].split('.')[0]) >= 17):
                 await asyncio.wait_for(ensure_tunnel(target['id'], report), 90)
-            report('正在建立定位服務連線…')
+            report('正在建立 Wi-Fi 定位通道，若出現管理員提示請允許…' if target['transport']=='WiFiIP' else '正在建立定位服務連線…')
             async with self.lock:
                 await self._command('connect', {'id': target['id']})
                 if self.device.active:
@@ -124,9 +132,12 @@ class Engine:
                 transport = data.get('transport', 'USB')
                 if transport not in ('USB', 'Network'):
                     raise ValueError('不支援的連線方式。')
+                host = data.get('host') if transport == 'Network' else None
+                if host:
+                    host = private_ipv4(host)
                 self.connection_phase = 'connecting'
                 self.connection_message = '正在掃描 iPhone…'
-                self.connection_task = asyncio.create_task(self._auto_connect(transport, data.get('id')))
+                self.connection_task = asyncio.create_task(self._auto_connect(transport, data.get('id'), host))
                 return self.snapshot()
         if action == 'disconnect':
             task = self.connection_task
@@ -200,7 +211,7 @@ class Engine:
                 raise ValueError('請先掃描並選擇一部 iPhone。')
             await self.device.close()
             try:
-                await asyncio.wait_for(self.device.connect(target), 18)
+                await asyncio.wait_for(self.device.connect(target), 65 if target['transport']=='WiFiIP' else 18)
             except BaseException:
                 await self.device.close()
                 raise
@@ -327,6 +338,10 @@ class Engine:
             record = {'id': uuid.uuid4().hex, 'name': name}
             if kind == 'favorites':
                 record['position'] = point(data.get('position', self.position))
+                category = data.get('category', 'point')
+                if category not in ('mushroom', 'postcard', 'point'):
+                    raise ValueError('收藏類型須為菇點、明信片或純點。')
+                record['category'] = category
             else:
                 if not self.route:
                     raise ValueError('尚未建立路線。')

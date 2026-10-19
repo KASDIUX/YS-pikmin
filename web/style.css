@@ -9,3 +9,16 @@
 .home-actions{display:flex;gap:8px;margin-top:14px}.home-actions button{flex:1;padding:9px 10px}.home-hint{font-size:11px;line-height:1.6}#home-status{font-variant-numeric:tabular-nums;margin-bottom:4px}
 
 .joystick-section{padding:20px 22px;border-top:1px solid #e4e8e0}.joystick{position:relative;width:180px;height:180px;margin:12px auto 20px;border:1px solid #cbd8cf;border-radius:50%;background:radial-gradient(circle,#edf3e9 0 27%,#dae5d9 28% 29%,#f4f7f0 30% 65%,#e5ede2 66%);touch-action:none;user-select:none;cursor:grab;outline-offset:5px}.joystick[aria-disabled=true]{opacity:.45;cursor:not-allowed}.joystick-knob{position:absolute;left:60px;top:60px;width:60px;height:60px;border-radius:50%;display:grid;place-items:center;color:white;font-size:27px;background:#305d49;border:3px solid #fff;box-shadow:0 3px 9px #173f4333;pointer-events:none}.joystick>span{position:absolute;color:#70816f;font-size:12px;pointer-events:none}.joystick-n{top:7px;left:83px}.joystick-s{bottom:7px;left:83px}.joystick-w{left:9px;top:82px}.joystick-e{right:9px;top:82px}#joystick-range{width:100%;accent-color:#305d49;margin:8px 0}
+
+.favorite-category{border:0;padding:0;margin:0 0 20px}.favorite-category[hidden]{display:none}.favorite-category legend{font-size:13px;color:#50614f;margin-bottom:10px}.favorite-type-options{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.favorite-type-options label{position:relative;margin:0;cursor:pointer}.favorite-type-options input{position:absolute;opacity:0;width:1px;height:1px}.favorite-type-options span{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;border:1px solid #dce3d8;border-radius:12px;background:#fafbf6;color:#667560;font-size:13px}.favorite-type-options b{font-size:23px;font-weight:400}.favorite-type-options input:checked+span{border-color:#3c6a4f;background:#eaf2e4;color:#2e5841;box-shadow:inset 0 0 0 1px #3c6a4f}.favorite-type-options input:focus-visible+span{outline:2px solid #557c61;outline-offset:3px}.favorite-type-badge{display:inline-block;font-size:11px;color:#43634b;background:#edf3e6;border-radius:5px;padding:3px 7px;margin-bottom:5px}.library-section #favorite-filter{width:100%;margin-bottom:12px}.sr-only{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* Keep long libraries inside their own scroll area. */
+#favorites-list,#routes-list{overflow-y:auto;overflow-x:hidden;overscroll-behavior-y:contain;scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:#a9bba2 transparent;padding-right:5px;border-radius:6px}
+#favorites-list{max-height:420px}
+#routes-list{max-height:260px}
+#favorites-list:focus-visible,#routes-list:focus-visible{outline:2px solid #a7bd83;outline-offset:3px}
+#favorites-list::-webkit-scrollbar,#routes-list::-webkit-scrollbar{width:7px}
+#favorites-list::-webkit-scrollbar-thumb,#routes-list::-webkit-scrollbar-thumb{background:#a9bba2;border-radius:8px}
+@media(max-width:760px){#favorites-list{max-height:360px}#routes-list{max-height:240px}}
+
+#wifi-ip-row{margin-bottom:10px}#wifi-ip-row label{font-size:11px;display:block;margin-bottom:6px}#wifi-ip{width:100%;font-size:12px}#wifi-ip-row .helper{font-size:10px;line-height:1.5}

@@ -23,6 +23,10 @@ class Store:
                             raise ValueError('invalid record')
                         if kind == 'favorites':
                             item['position'] = point(item.get('position'))
+                            category = item.get('category', 'point')
+                            if category not in ('mushroom', 'postcard', 'point'):
+                                raise ValueError('invalid favorite category')
+                            item['category'] = category
                         else:
                             route = Route(item.get('points'))
                             item['points'], item['distance'] = route.points, route.length
@@ -32,6 +36,9 @@ class Store:
                     home = point(home)
                 self.data = {k: loaded[k] for k in self.data}
                 self.data['home'] = home
+                wifi = loaded.get('wifi_device')
+                if isinstance(wifi,dict) and all(isinstance(wifi.get(k),str) for k in ('id','name','ios','host','transport')):
+                    self.data['wifi_device'] = {k:wifi[k] for k in ('id','name','ios','host','transport')}
             except (ValueError, OSError):
                 self.warning = '收藏資料無法讀取，原檔已保留。請先備份並修復 data/library.json，再重新啟動。'
 

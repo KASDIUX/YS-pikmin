@@ -7,12 +7,10 @@ import sys
 from .device import read_tunnels, same_id
 
 
-def launch_tunnel():
+def launch_admin(arguments):
     if os.name != 'nt':
         raise ValueError('自動啟動通道目前支援 Windows。')
-    # Fixed executable and arguments: no browser-provided command or path.
-    prefix = ['--device-cli'] if getattr(sys, 'frozen', False) else ['-m', 'pymobiledevice3']
-    params = subprocess.list2cmdline(prefix + ['remote', 'tunneld', '--host', '127.0.0.1'])
+    params = subprocess.list2cmdline(arguments)
     shell = ctypes.windll.shell32.ShellExecuteW
     shell.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_wchar_p,
                       ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_int]
@@ -20,6 +18,11 @@ def launch_tunnel():
     result = shell(None, 'runas', sys.executable, params, os.path.dirname(sys.executable), 0)
     if result <= 32:
         raise ValueError('未能啟動通道，可能已取消管理員確認。請重新按「連接 iPhone」。')
+
+
+def launch_tunnel():
+    prefix = ['--device-cli'] if getattr(sys, 'frozen', False) else ['-m', 'pymobiledevice3']
+    launch_admin(prefix + ['remote', 'tunneld', '--host', '127.0.0.1', '--protocol', 'tcp'])
 
 
 async def ensure_tunnel(target_id, report):

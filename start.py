@@ -58,6 +58,10 @@ if __name__ == '__main__':
         sys.argv = [sys.argv[0]] + sys.argv[2:]
         from pymobiledevice3.__main__ import main as device_main
         device_main()
+    elif len(sys.argv) == 3 and sys.argv[1] == '--wifi-helper':
+        import asyncio
+        from leafroute.wifi import helper
+        asyncio.run(helper(sys.argv[2]))
     elif len(sys.argv) > 1 and sys.argv[1] == '--prepare-device':
         from prepare_device import main as prepare_main
         raise SystemExit(prepare_main())

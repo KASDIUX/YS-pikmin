@@ -95,7 +95,11 @@ class Device:
         try:
             version = target.get('ios', '')
             lockdown = None
-            if target['transport'] != 'Tunnel':
+            if target['transport'] == 'WiFiIP':
+                from .wifi import open_paired_wifi
+                lockdown = await stack.enter_async_context(await open_paired_wifi(target['host'],target['id']))
+                version = lockdown.product_version
+            elif target['transport'] != 'Tunnel':
                 lockdown = await stack.enter_async_context(await create_using_usbmux(
                     serial=target['id'], connection_type=target['transport'], autopair=False))
                 version = lockdown.product_version
@@ -105,14 +109,19 @@ class Device:
                 service = await lockdown.start_lockdown_developer_service('com.apple.dt.simulatelocation')
                 await service.close()
             else:
-                try:
-                    tunnels = await asyncio.to_thread(read_tunnels)
-                except Exception:
-                    raise ValueError('尚未找到 iOS 通道。請以系統管理員身分執行 Start_Tunnel.cmd，稍候再連接。') from None
-                details = next((items for udid, items in tunnels.items() if same_id(udid, target['id'])), [])
-                if not details:
-                    raise ValueError('此 iPhone 尚未建立通道。請確認已開啟開發者模式，並啟動 Start_Tunnel.cmd。')
-                detail = details[0]
+                if target['transport'] == 'WiFiIP':
+                    from .wifi import WifiTunnel
+                    result = await stack.enter_async_context(WifiTunnel(target))
+                    detail = {'tunnel-address':result['address'],'tunnel-port':result['port']}
+                else:
+                    try:
+                        tunnels = await asyncio.to_thread(read_tunnels)
+                    except Exception:
+                        raise ValueError('尚未找到 iOS 通道。請以系統管理員身分執行 Start_Tunnel.cmd，稍候再連接。') from None
+                    details = next((items for udid, items in tunnels.items() if same_id(udid, target['id'])), [])
+                    if not details:
+                        raise ValueError('此 iPhone 尚未建立通道。請確認已開啟開發者模式，並啟動 Start_Tunnel.cmd。')
+                    detail = details[0]
                 rsd = await stack.enter_async_context(RemoteServiceDiscoveryService((detail['tunnel-address'], int(detail['tunnel-port']))))
                 if not same_id(rsd.udid, target['id']):
                     raise ValueError('裝置識別碼不相符，已取消連接。')

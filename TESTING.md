@@ -55,3 +55,18 @@ PyInstaller 6.22.3，Python 3.12.10，Windows x64。37 項單元測試通過。E
 ## v0.5.0 EXE 驗證
 
 45 項單元測試通過。新版 EXE 在不含外部 Python PATH 的環境通過啟動、網頁資源、住家保存／傳送回家、單次搖桿步進、步進後無背景漂移、預覽行走、套件版本及 USB 掃描呼叫。內建 tunneld、auto-mount、DVT help 均可載入。本次 USB 掃描未找到手機，因此沒有進行新版實機定位傳送；Wi-Fi 也未實測。
+
+
+## Wi-Fi 診斷（2026-10-19）
+
+同一區網下，Apple 無線服務 TCP 62078 可連線，使用既有 USB 配對資料的直接 TCP lockdown 驗證成功，並確認是同一支 iOS 26.6.2 手機。自動裝置／Bonjour 掃描未找到 Network 裝置。經使用者確認 UAC 後測試 Wi-Fi CoreDeviceProxy 通道，連續兩次在 request_tunnel_establish 握手時收到 ConnectionTerminatedError；未進入 RSD 或定位服務，沒有傳送座標。結果為無線配對服務可用，但目前定位通道未驗證成功，不能宣稱 Wi-Fi 定位可用。此測試沒有更動手機無線偵錯設定。
+
+
+## 指定 IP 調整
+
+53 項測試通過，包含私有 IP 驗證、首次裝置身分需求、無效 IP 不留下連線工作、確認目標後不借用 USB 共用通道，以及子程序失敗後停止心跳。新增指定 IP 入口與專用 TCP 通道生命週期。實機配對可用，但 iOS 26.6.2 拔除 USB 後仍在 Wi-Fi CoreDeviceProxy 握手遭 ConnectionTerminatedError。已依使用者同意暫時開啟 Wi-Fi 偵錯測試，結果仍失敗，且已確認恢復原值 False。沒有傳送定位座標。
+
+
+## v0.6.0 EXE 驗證
+
+53 項單元測試通過。Python 3.12.10 / PyInstaller 6.22.3 建置 Windows x64 EXE；頂層只有 Pikmin launch.exe 與「程式資料」資料夾。EXE 在 PATH 僅含 Windows System32、移除 PYTHONHOME/PYTHONPATH 的環境通過啟動、網頁資源、分類收藏、固定高度樣式、住家、搖桿步進與無背景漂移、路線預覽、套件版本、USB 掃描（1 支手機）。內建 tunneld、auto-mount、DVT help 正常，Wi-Fi helper 能載入並拒絕無效工作目錄。此 EXE 測試未建立實機定位連線或傳送座標；同日原始碼版已重新驗證 USB 定位服務連線。Wi-Fi 定位仍失敗，尚未在全新 Windows 完整驗證。
