@@ -70,3 +70,8 @@ PyInstaller 6.22.3，Python 3.12.10，Windows x64。37 項單元測試通過。E
 ## v0.6.0 EXE 驗證
 
 53 項單元測試通過。Python 3.12.10 / PyInstaller 6.22.3 建置 Windows x64 EXE；頂層只有 Pikmin launch.exe 與「程式資料」資料夾。EXE 在 PATH 僅含 Windows System32、移除 PYTHONHOME/PYTHONPATH 的環境通過啟動、網頁資源、分類收藏、固定高度樣式、住家、搖桿步進與無背景漂移、路線預覽、套件版本、USB 掃描（1 支手機）。內建 tunneld、auto-mount、DVT help 正常，Wi-Fi helper 能載入並拒絕無效工作目錄。此 EXE 測試未建立實機定位連線或傳送座標；同日原始碼版已重新驗證 USB 定位服務連線。Wi-Fi 定位仍失敗，尚未在全新 Windows 完整驗證。
+
+
+## v0.6.1 版面與 EXE 驗證
+
+當地時間卡片已移至右側欄、步調與搖桿位於地圖下方。瀏覽器確認時間卡片不覆蓋地圖、沒有重複 ID 或水平溢出，搖桿維持原 180px 尺寸。新版 EXE 在移除外部 Python PATH 的環境通過啟動、新版 HTML 與 CSS 載入、路線預覽、住家、搖桿與無背景漂移、分類收藏、USB 掃描（1 支）、內建裝置工具及 Wi-Fi helper 載入。測試使用獨立 8768 埠與暫存資料，未傳送實機定位座標。功能單元測試沿用 v0.6.0 的 53 項通過紀錄；本版僅調整版面與版本資訊。

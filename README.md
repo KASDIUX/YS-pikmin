@@ -1,6 +1,10 @@
 # YS-pikmin · 漫步座標
 
-Windows 上的本機 GPS 路線工作台，版本 **0.6.0**。獨立編寫並附完整可修改原始碼，沒有使用 BloomWalker 的程式碼、品牌或圖片。
+Windows 上的本機 GPS 路線工作台，版本 **0.6.1**。獨立編寫並附完整可修改原始碼，沒有使用 BloomWalker 的程式碼、品牌或圖片。
+
+## v0.6.1 更新
+
+地圖加寬、加高，當地時間卡片移到右側欄上方。設定步調與方向搖桿移到地圖下方，以兩張操作卡片呈現；右側保留選點、路線與收藏。窄螢幕自動改為直向排列。
 
 ## v0.6.0 更新
 
@@ -22,7 +26,7 @@ Windows 上的本機 GPS 路線工作台，版本 **0.6.0**。獨立編寫並附
 
 ## Windows EXE（不需安裝 Python）
 
-從 GitHub Releases 下載 `YS-pikmin-v0.6.0-Windows-x64.zip`，完整解壓縮，再雙擊 `Pikmin launch.exe`。旁邊的 `程式資料` 資料夾必須保留；不要直接在壓縮檔內執行。這是 Windows x64 版本，啟動後使用瀏覽器介面。主程式視窗需保持開啟。
+從 GitHub Releases 下載 `YS-pikmin-v0.6.1-Windows-x64.zip`，完整解壓縮，再雙擊 `Pikmin launch.exe`。旁邊的 `程式資料` 資料夾必須保留；不要直接在壓縮檔內執行。這是 Windows x64 版本，啟動後使用瀏覽器介面。主程式視窗需保持開啟。
 
 EXE 已包含 Python 與 pymobiledevice3 9.29.1。手機仍需 Apple Devices 驅動、信任電腦與開發者模式。按「連接 iPhone」即可啟動通道；Windows 管理員提示需自行確認。開發者映像準備可在命令列執行 `"Pikmin launch.exe" --prepare-device`。
 

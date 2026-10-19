@@ -5,7 +5,7 @@
   <meta name="leafroute-token" content="__TOKEN__">
   <title>YS-pikmin · 漫步座標</title>
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/vendor/leaflet.css"><link rel="stylesheet" href="/style.css?v=0.6.0">
+  <link rel="stylesheet" href="/vendor/leaflet.css"><link rel="stylesheet" href="/style.css?v=0.6.1">
   <script src="/vendor/leaflet.js" defer></script><script src="/app.js?v=0.6.0" defer></script>
 </head>
 <body>
@@ -17,11 +17,24 @@
   <section class="heading"><div><p class="eyebrow">YOUR NEXT LITTLE JOURNEY</p><h1>每一步，都由你決定。</h1><p class="subtitle">選一個起點，畫一段路線。讓下一趟漫步更簡單。</p></div></section>
   <div id="notice" class="notice" role="status"><span class="notice-dot"></span><span id="notice-text">預覽模式已就緒；不會改變手機定位。</span></div>
   <div class="workspace">
+    <div class="map-column">
     <section class="map-panel" aria-label="地圖工作區">
       <div class="map-toolbar"><div class="segmented"><button id="select-mode" class="active" aria-pressed="true">⌖ 選擇位置</button><button id="draw-mode" aria-pressed="false">⌁ 繪製路線</button></div><div class="map-actions"><button id="center" class="icon-button" title="回到目前座標" aria-label="回到目前座標">◎</button><button id="fit" class="icon-button" title="顯示完整路線" aria-label="顯示完整路線">⛶</button></div></div>
-      <div class="map-wrap"><div id="map"></div><div id="map-hint" class="map-hint">點一下地圖，選擇下一個位置</div><div id="tile-warning" class="tile-warning" hidden>地圖圖磚無法載入；座標與路線操作仍可使用。</div><section class="timezone-card" aria-label="選定地點的當地時間"><div class="timezone-card-top"><span>選定地點 · 當地時間</span><strong id="timezone-offset">—</strong></div><time id="timezone-clock">—</time><div id="timezone-date"></div><strong id="timezone-name">點選地圖查詢時區</strong><div id="timezone-coordinates"></div><small>依電腦時鐘 · 自動套用日光節約時間<br>邊界附近為近似判定</small></section><div class="map-legend"><span class="legend-dot current"></span>目前座標<span class="legend-dot selected"></span>選定位置</div></div>
+      <div class="map-wrap"><div id="map"></div><div id="map-hint" class="map-hint">點一下地圖，選擇下一個位置</div><div id="tile-warning" class="tile-warning" hidden>地圖圖磚無法載入；座標與路線操作仍可使用。</div><div class="map-legend"><span class="legend-dot current"></span>目前座標<span class="legend-dot selected"></span>選定位置</div></div>
       <div class="map-bottom"><span><i class="live-dot"></i><span id="position-label">預覽座標</span> <strong id="current-coordinates">25.033964, 121.564468</strong></span><span id="map-mode-note">僅在電腦上預覽</span></div>
     </section>
+    <div class="movement-controls" aria-label="移動控制">
+        <section class="control-section pace-section" aria-label="設定步調"><div class="section-label"><span>03</span><h2>設定步調</h2><label class="switch-label"><input id="loop" type="checkbox">循環回程</label></div>
+          <div class="speed-presets"><button data-speed="5" class="active">散步 <b>5</b></button><button data-speed="8">慢跑 <b>8</b></button><button data-speed="12">跑步 <b>12</b></button><button data-speed="20">騎車 <b>20</b></button></div>
+          <div class="speed-input"><label for="speed">移動速度</label><input id="speed" type="number" min="0.5" max="120" step="0.5" value="5"><span>km/h</span></div>
+          <div class="playback"><button id="start" class="button primary">▶ 開始</button><button id="pause" class="button outline" disabled>Ⅱ 暫停</button></div>
+          <button id="restore" class="restore-button">■ 停止</button>
+        </section>
+        <section class="joystick-section" aria-label="方向搖桿設定"><div class="section-label"><h2>方向搖桿</h2><span id="joystick-status" class="tiny-badge">放開即停</span></div><div class="joystick-body"><div id="joystick" class="joystick" tabindex="0" role="group" aria-label="方向搖桿：拖曳移動，也可使用方向鍵"><span class="joystick-n">北</span><span class="joystick-e">東</span><span class="joystick-s">南</span><span class="joystick-w">西</span><div id="joystick-knob" class="joystick-knob">✥</div></div><div class="joystick-settings"><div class="speed-input"><label for="joystick-speed">搖桿速度</label><input id="joystick-speed" type="number" min="0.5" max="30" step="0.5" value="5"><span>km/h</span></div><input id="joystick-range" aria-label="搖桿移動速度" type="range" min="0.5" max="30" step="0.5" value="5"><p class="helper">拖曳控制方向，離中心越遠越快。放開或切換視窗即停止；路線行走中請先暫停。</p><p class="helper">「停止」在手機模式會清除模擬定位；搖桿放開則保留最後位置。</p></div></div></section>
+    </div>
+    </div>
+    <div class="side-column">
+    <section class="timezone-card" aria-label="選定地點的當地時間"><div class="timezone-card-top"><span>選定地點 · 當地時間</span><strong id="timezone-offset">—</strong></div><time id="timezone-clock">—</time><div id="timezone-date"></div><strong id="timezone-name">點選地圖查詢時區</strong><div id="timezone-coordinates"></div><small>依電腦時鐘 · 自動套用日光節約時間<br>邊界附近為近似判定</small></section>
     <aside class="control-panel">
       <div class="tabs" role="tablist" aria-label="工作面板"><button id="tab-route" role="tab" aria-selected="true" aria-controls="panel-route" class="active">路線工作台</button><button id="tab-library" role="tab" aria-selected="false" aria-controls="panel-library">我的收藏 <span id="library-count">0</span></button></div>
       <div id="panel-route" role="tabpanel" aria-labelledby="tab-route">
@@ -37,19 +50,14 @@
           <div class="route-summary"><div><span>路線距離</span><strong id="route-distance">—<small> km</small></strong></div><div><span>預估時間</span><strong id="eta">—<small> 分鐘</small></strong></div></div>
           <div class="route-links"><button id="undo" class="text-button">↶ 撤回一點</button><button id="clear-route" class="text-button">清除路線</button><button id="save-route" class="text-button">儲存路線 ↗</button><button id="use-start" class="text-button">◎ 選取起點</button></div>
         </section>
-        <section class="control-section"><div class="section-label"><span>03</span><h2>設定步調</h2><label class="switch-label"><input id="loop" type="checkbox">循環回程</label></div>
-          <div class="speed-presets"><button data-speed="5" class="active">散步 <b>5</b></button><button data-speed="8">慢跑 <b>8</b></button><button data-speed="12">跑步 <b>12</b></button><button data-speed="20">騎車 <b>20</b></button></div>
-          <div class="speed-input"><label for="speed">移動速度</label><input id="speed" type="number" min="0.5" max="120" step="0.5" value="5"><span>km/h</span></div>
-          <div class="playback"><button id="start" class="button primary">▶ 開始</button><button id="pause" class="button outline" disabled>Ⅱ 暫停</button></div>
-          <button id="restore" class="restore-button">■ 停止</button>
-        </section>
-        <section class="joystick-section"><div class="section-label"><h2>方向搖桿</h2><span id="joystick-status" class="tiny-badge">放開即停</span></div><div id="joystick" class="joystick" tabindex="0" role="group" aria-label="方向搖桿：拖曳移動，也可使用方向鍵"><span class="joystick-n">北</span><span class="joystick-e">東</span><span class="joystick-s">南</span><span class="joystick-w">西</span><div id="joystick-knob" class="joystick-knob">✥</div></div><div class="speed-input"><label for="joystick-speed">搖桿速度</label><input id="joystick-speed" type="number" min="0.5" max="30" step="0.5" value="5"><span>km/h</span></div><input id="joystick-range" aria-label="搖桿移動速度" type="range" min="0.5" max="30" step="0.5" value="5"><p class="helper">拖曳控制方向，離中心越遠越快。放開或切換視窗即停止；路線行走中請先暫停。</p><p class="helper">「停止」在手機模式會清除模擬定位；搖桿放開則保留最後位置。</p></section>
+
       </div>
       <div id="panel-library" role="tabpanel" aria-labelledby="tab-library" hidden><section class="control-section library-section"><h2>留住喜歡的地方。</h2><p class="helper">位置與路線只儲存在這台電腦。</p><h3>收藏位置</h3><label class="sr-only" for="favorite-filter">篩選收藏類型</label><select id="favorite-filter" aria-label="篩選收藏類型"><option value="all">全部收藏</option><option value="mushroom">菇點</option><option value="postcard">明信片</option><option value="point">純點</option></select><div id="favorites-list" tabindex="0" role="region" aria-label="收藏位置清單，可捲動"></div><h3>已存路線</h3><div id="routes-list" tabindex="0" role="region" aria-label="已存路線清單，可捲動"></div></section></div>
     </aside>
+    </div>
   </div>
   <section class="journey-bar" aria-label="行走狀態"><div class="journey-status"><span id="journey-icon">⌁</span><div><strong id="journey-status">準備出發</strong><small id="journey-detail">新增至少兩個路徑點即可開始</small></div></div><div class="progress-wrap"><div class="progress-label"><span>本趟進度</span><span id="progress-label">0%</span></div><progress id="progress" max="100" value="0"></progress></div><div class="journey-metric"><small>累計移動</small><strong id="traveled">0 <span>m</span></strong></div><div class="journey-metric"><small>完成圈數</small><strong id="laps">0</strong></div></section>
-  <footer><span><img src="/icon.svg" alt="" width="18" height="18"> YS-pikmin · 獨立開發的定位工作台</span><span>v0.6.0 · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">回報地圖問題</a> <span class="footer-dot">●</span></span></footer>
+  <footer><span><img src="/icon.svg" alt="" width="18" height="18"> YS-pikmin · 獨立開發的定位工作台</span><span>v0.6.1 · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">回報地圖問題</a> <span class="footer-dot">●</span></span></footer>
 </main>
 <dialog id="device-dialog"><form method="dialog" class="dialog-head"><h2>連接 iPhone</h2><button class="icon-button" aria-label="關閉">×</button></form><div class="dialog-body"><p>接上 USB、解鎖 iPhone，並信任這部電腦。Windows 需安裝 Apple Devices，iPhone 需開啟開發者模式。</p><p>按「連接 iPhone」會自動掃描裝置並準備通道。若出現 Windows 管理員確認，請選擇「是」。不必另外開啟 Start_Tunnel.cmd。</p><p>Wi-Fi 需要事先配對並能被 Apple 裝置服務偵測。多部手機同時在線時，請選擇要連接的裝置再按連接。</p><p>停止連接會取消連線作業；已連接時會先還原模擬定位再中斷。背景通道保留供下次使用，不會關閉其他程式共用的通道。若已取消連線，請關閉仍顯示的管理員提示。</p><p>若缺少通訊套件或開發者映像，依錯誤提示執行 Install_Device_Support.cmd 或 Prepare_Device.cmd。連線成功不會自動傳送座標。</p></div></dialog>
 <dialog id="name-dialog"><form id="name-form"><div class="dialog-head"><h2 id="name-title">儲存收藏</h2><button type="button" id="name-cancel" class="icon-button" aria-label="關閉">×</button></div><div class="dialog-body"><fieldset id="favorite-category" class="favorite-category"><legend>收藏類型</legend><div class="favorite-type-options"><label><input type="radio" name="favorite-type" value="mushroom"><span><b>🍄</b>菇點</span></label><label><input type="radio" name="favorite-type" value="postcard"><span><b>✉</b>明信片</span></label><label><input type="radio" name="favorite-type" value="point" checked><span><b>⌖</b>純點</span></label></div><p class="helper">選擇分類，方便下次找到位置。</p></fieldset><label for="save-name">名稱</label><input id="save-name" maxlength="60" required placeholder="例如：週末散步路線"><div class="dialog-actions"><button class="button primary" type="submit">儲存在本機</button></div></div></form></dialog>

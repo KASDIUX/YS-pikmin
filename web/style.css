@@ -22,3 +22,43 @@
 @media(max-width:760px){#favorites-list{max-height:360px}#routes-list{max-height:240px}}
 
 #wifi-ip-row{margin-bottom:10px}#wifi-ip-row label{font-size:11px;display:block;margin-bottom:6px}#wifi-ip{width:100%;font-size:12px}#wifi-ip-row .helper{font-size:10px;line-height:1.5}
+
+/* Movement controls share the space below the map. */
+.map-column{min-width:0;display:grid;gap:18px}
+.movement-controls{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:stretch}
+.movement-controls>section{min-width:0;background:white;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:22px}
+.movement-controls .section-label{margin-bottom:18px}
+.movement-controls .speed-presets button{padding:12px 4px;font-size:11px}
+.movement-controls .speed-presets b{font-size:18px;margin-top:5px}
+.movement-controls .speed-input{margin-top:18px}
+.movement-controls .speed-input label{font-size:12px}
+.movement-controls .speed-input input{width:66px;padding:8px;font-size:12px}
+.movement-controls .playback{margin-top:22px}
+.movement-controls .playback button{min-height:44px}
+.movement-controls .restore-button{padding-top:16px;font-size:11px}
+.joystick-body{display:grid;grid-template-columns:180px minmax(0,1fr);align-items:center;gap:18px}
+.movement-controls .joystick{width:180px;height:180px;margin:8px 0}
+.movement-controls .joystick-knob{left:60px;top:60px}
+.movement-controls .joystick-n,.movement-controls .joystick-s{left:83px}
+.movement-controls .joystick-w,.movement-controls .joystick-e{top:82px}
+.joystick-settings{min-width:0}
+.joystick-settings .speed-input{margin-top:0}
+.joystick-settings .helper{font-size:10px;line-height:1.8}
+.workspace .map-wrap{height:clamp(400px,52vh,560px)}
+.control-panel .control-section:last-child{border-bottom:0}
+@media(min-width:1151px) and (max-width:1500px){.joystick-body{grid-template-columns:1fr;gap:8px}.movement-controls .joystick{margin:0 auto 8px}.joystick-settings .helper{font-size:10px}.movement-controls>section{padding:20px}}
+@media(max-width:1150px){.movement-controls{grid-template-columns:1fr}.joystick-body{grid-template-columns:180px minmax(0,1fr)}}
+@media(max-width:760px){.map-column{gap:14px}.workspace .map-wrap{height:420px}.movement-controls{gap:14px}.movement-controls>section{padding:20px}.joystick-body{gap:16px}.control-panel{margin-top:2px}}
+@media(max-width:380px){.joystick-body{grid-template-columns:1fr}.movement-controls .joystick{margin:0 auto 10px}}
+
+/* Keep the clock beside the map, with more room for the map itself. */
+.side-column{min-width:0;display:grid;gap:16px}
+.side-column .timezone-card{position:static;width:100%;padding:20px 22px;border:1px solid var(--line);border-radius:14px;background:white;box-shadow:var(--shadow)}
+.side-column .timezone-card time{font-size:36px;line-height:1.5}
+.side-column .timezone-card small{font-size:10px;margin-top:12px}
+.workspace{grid-template-columns:minmax(0,1fr) 320px}
+.workspace .map-wrap{height:clamp(560px,70vh,820px)}
+.map-hint{max-width:calc(100% - 32px)}
+@media(min-width:1400px){main{max-width:1760px;padding-left:3%;padding-right:3%}.workspace{grid-template-columns:minmax(0,1fr) 330px}}
+@media(max-width:1050px){.workspace{grid-template-columns:minmax(0,1fr) 290px}.side-column .timezone-card{padding:18px}.side-column .timezone-card time{font-size:32px}}
+@media(max-width:760px){.workspace{grid-template-columns:1fr}.workspace .map-wrap{height:clamp(480px,65vh,680px)}.side-column{gap:14px}.side-column .timezone-card{padding:18px 20px}.side-column .timezone-card time{font-size:32px}}
