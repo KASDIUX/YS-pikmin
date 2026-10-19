@@ -50,3 +50,8 @@ v0.2.0 使用獨立本機測試埠驗證「沿道路規劃」：6 個示範途�
 ## v0.4.0 EXE 驗證
 
 PyInstaller 6.22.3，Python 3.12.10，Windows x64。37 項單元測試通過。EXE 在 PATH 僅含 Windows System32、不含外部 Python 的子行程中通過：啟動、HTML 與 JS 資源、時區資料、預覽行走與暫停、pymobiledevice3 版本讀取與 USB 裝置掃描。內建 remote tunneld、mounter auto-mount、developer dvt 指令的 help 均成功。未在全新 Windows 電腦測試，也未用此 EXE 傳送新的實機模擬座標。
+
+
+## v0.5.0 EXE 驗證
+
+45 項單元測試通過。新版 EXE 在不含外部 Python PATH 的環境通過啟動、網頁資源、住家保存／傳送回家、單次搖桿步進、步進後無背景漂移、預覽行走、套件版本及 USB 掃描呼叫。內建 tunneld、auto-mount、DVT help 均可載入。本次 USB 掃描未找到手機，因此沒有進行新版實機定位傳送；Wi-Fi 也未實測。

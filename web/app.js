@@ -96,8 +96,13 @@ function render(s){
   state=s;current.setLatLng(s.position);updateConnector();
   const isDevice=s.mode==='device',running=s.status==='running';
   $('mode-badge').classList.toggle('device',isDevice);$('mode-badge').replaceChildren(Object.assign(document.createElement('i'),{}),document.createTextNode(isDevice?(s.connected?'iPhone 模式':'iPhone 已斷線'):'預覽模式'));
-  $('notice-text').textContent=s.message;$('notice').classList.toggle('error',s.error);
+  $('notice-text').textContent=s.message==='搖桿移動中；放開即可停止。'?'搖桿位置已更新。':s.message;$('notice').classList.toggle('error',s.error);
   $('current-coordinates').textContent=s.position.map(x=>x.toFixed(6)).join(', ');
+  const home=s.home;
+  $('home-status').textContent=home?'住家：'+home.map(x=>Number(x).toFixed(6)).join(', '):'尚未設定住家。請先選點，再按「設定住家」。';
+  $('set-home').disabled=!!$('set-home').dataset.busy||!Object.hasOwn(s,'home');
+  $('go-home').disabled=!!$('go-home').dataset.busy||!home||running||s.connection_phase==='connecting'||(isDevice&&!s.connected);
+  $('go-home').title=running?'請先暫停路線':isDevice?'將住家座標傳送至 iPhone':'在預覽中移到住家';
   $('position-label').textContent=isDevice?(s.simulation_active?'最後送出座標':'工作台座標'):'預覽座標';
   $('map-mode-note').textContent=isDevice?(s.connected?'已連接定位服務':'等待重新連接'):'僅在電腦上預覽';
   if(document.activeElement!==$('speed'))$('speed').value=s.speed;
@@ -107,8 +112,9 @@ function render(s){
   $('route-distance').replaceChildren(document.createTextNode(s.route_distance?(s.route_distance/1000).toFixed(2):'—'),Object.assign(document.createElement('small'),{textContent:' km'}));
   const minutes=s.route_distance/(s.speed/3.6)/60;
   $('eta').replaceChildren(document.createTextNode(minutes?(minutes<1?'<1':Math.ceil(minutes)):'—'),Object.assign(document.createElement('small'),{textContent:' 分鐘'}));
-  $('start').textContent=s.status==='paused'?'▶ 繼續行走':isDevice?'▶ 開始傳送路線':'▶ 開始預覽';
-  $('restore').textContent=isDevice?'■ 停止並還原手機定位':'■ 停止預覽';
+  $('start').textContent='▶ 開始';
+  $('restore').textContent='■ 停止';
+  $('restore').title=isDevice?'停止並還原手機定位':'停止預覽';
   for(const id of ['start','pause','go','undo','clear-route','import','export','demo','save-route','loop','plan-road','use-start']){
     if($(id).dataset.busy)continue;
     let disabled=false;
@@ -121,7 +127,9 @@ function render(s){
     else disabled=running;
     $(id).disabled=disabled;
   }
-  document.querySelectorAll('[data-bearing]').forEach(b=>b.disabled=running||(isDevice&&!s.connected));
+  const stickDisabled=running||(isDevice&&!s.connected)||s.connection_phase==='connecting';
+  $('joystick').setAttribute('aria-disabled',String(stickDisabled));
+  if(stickDisabled)stopJoystick();
   const connecting=s.connection_phase==='connecting';
   $('connect').disabled=connecting||s.connected||running;
   $('connect').textContent=connecting?'連接中…':s.connected?'iPhone 已連接':'連接 iPhone';
@@ -184,7 +192,7 @@ bind('go',async()=>{const p=coordinate($('coordinates').value);await act('positi
 $('coordinates').addEventListener('keydown',e=>{if(e.key==='Enter')$('go').click();});
 bind('undo',async()=>{const draft=routeMeta.kind==='road'?routeMeta.waypoints:points;if(draft.length<=2){const keep=draft.slice(0,-1);await setRoute([]);points=keep;drawRoute();if(state)render(state);}else await setRoute(draft.slice(0,-1));});
 bind('clear-route',async()=>{await setRoute([]);setDrawing(false);});
-bind('start',async()=>{planEpoch++;await settings();await act('start');setDrawing(false);});bind('pause',()=>act('pause'));bind('restore',()=>{planEpoch++;return act('restore');});
+bind('start',async()=>{stopJoystick();planEpoch++;await settings();await act('start');setDrawing(false);});bind('pause',()=>act('pause'));bind('restore',()=>{stopJoystick();planEpoch++;return act('restore');});
 bind('use-start',()=>{if(points.length){select(points[0],true);toast('已選取路線起點。按「套用」才會更新工作台或手機位置。');}});
 bind('plan-road',async()=>{
   const waypoints=routeMeta.kind==='road'?routeMeta.waypoints:points;
@@ -201,7 +209,7 @@ bind('plan-road',async()=>{
 $('speed').addEventListener('change',()=>settings().catch(e=>toast(e.message,true)));
 $('loop').addEventListener('change',()=>settings().catch(e=>toast(e.message,true)));
 document.querySelectorAll('[data-speed]').forEach(b=>b.addEventListener('click',async()=>{try{$('speed').value=b.dataset.speed;await settings();}catch(e){toast(e.message,true);}}));
-document.querySelectorAll('[data-bearing]').forEach(b=>b.addEventListener('click',async()=>{if(b.dataset.busy)return;b.dataset.busy='1';try{await act('nudge',{bearing:Number(b.dataset.bearing)});}catch(e){toast(e.message,true);}finally{delete b.dataset.busy;}}));
+
 bind('demo',async()=>{
   if(state.mode!=='preview')throw new Error('示範路線只在預覽模式使用。請先還原並中斷手機連線。');
   const route=[[25.033964,121.564468],[25.03505,121.564468],[25.03505,121.5663],[25.03275,121.5663],[25.03275,121.564468],[25.033964,121.564468]];
@@ -257,3 +265,54 @@ setInterval(tickTimezone,1000);
 
 L.DomEvent.disableClickPropagation(document.querySelector('.timezone-card'));
 L.DomEvent.disableScrollPropagation(document.querySelector('.timezone-card'));
+
+bind('set-home',async()=>{
+  const position=coordinate($('coordinates').value);
+  await act('set-home',{position});
+  toast('住家已設定；沒有移動手機。');
+});
+bind('go-home',async()=>{
+  const result=await act('go-home');
+  select(result.position,true);
+  toast(result.message);
+});
+
+let stickVector=null,stickPointer=null,stickPending=false,stickTimer=null,stickEpoch=0;
+const stickKeys=new Set();
+function stopJoystick(){
+  stickVector=null;stickPointer=null;stickKeys.clear();stickEpoch++;
+  clearTimeout(stickTimer);stickTimer=null;
+  $('joystick-knob').style.transform='translate(0px,0px)';
+  $('joystick-status').textContent='放開即停';
+}
+function setStick(x,y){
+  if($('joystick').getAttribute('aria-disabled')==='true')return;
+  const radius=60,length=Math.hypot(x,y),scale=length>radius?radius/length:1;
+  x*=scale;y*=scale;
+  $('joystick-knob').style.transform=`translate(${x}px,${y}px)`;
+  const strength=Math.min(1,length/radius);
+  stickVector=strength<0.12?null:{bearing:(Math.atan2(x,-y)*180/Math.PI+360)%360,strength};
+  $('joystick-status').textContent=stickVector?'移動中':'中心停留';
+  if(stickVector&&!stickPending&&!stickTimer)sendStick();
+}
+async function sendStick(){
+  stickTimer=null;
+  if(!stickVector||stickPending)return;
+  const speed=Number($('joystick-speed').value),epoch=stickEpoch;
+  if(!Number.isFinite(speed)||speed<0.5||speed>30){stopJoystick();toast('搖桿速度須介於 0.5～30 km/h。',true);return;}
+  stickPending=true;
+  const started=performance.now();
+  try{const result=await api('joystick',{...stickVector,speed});render(result);}
+  catch(e){stopJoystick();toast(e.message,true);await refresh();}
+  finally{stickPending=false;if(stickVector)stickTimer=setTimeout(sendStick,Math.max(0,200-(performance.now()-started)));}
+}
+function pointStick(e){const rect=$('joystick').getBoundingClientRect();setStick(e.clientX-rect.left-rect.width/2,e.clientY-rect.top-rect.height/2);}
+$('joystick').addEventListener('pointerdown',e=>{if(e.button!==0||stickPointer!==null||$('joystick').getAttribute('aria-disabled')==='true')return;e.preventDefault();stickPointer=e.pointerId;$('joystick').setPointerCapture(e.pointerId);pointStick(e);});
+$('joystick').addEventListener('pointermove',e=>{if(e.pointerId===stickPointer)pointStick(e);});
+for(const name of ['pointerup','pointercancel','lostpointercapture'])$('joystick').addEventListener(name,stopJoystick);
+$('joystick').addEventListener('keydown',e=>{if(!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key))return;e.preventDefault();stickKeys.add(e.key);setStick((+stickKeys.has('ArrowRight')-+stickKeys.has('ArrowLeft'))*60,(+stickKeys.has('ArrowDown')-+stickKeys.has('ArrowUp'))*60);});
+$('joystick').addEventListener('keyup',e=>{if(!e.key.startsWith('Arrow'))return;e.preventDefault();stickKeys.delete(e.key);if(!stickKeys.size)stopJoystick();else setStick((+stickKeys.has('ArrowRight')-+stickKeys.has('ArrowLeft'))*60,(+stickKeys.has('ArrowDown')-+stickKeys.has('ArrowUp'))*60);});
+$('joystick').addEventListener('blur',stopJoystick);
+window.addEventListener('blur',stopJoystick);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)stopJoystick();});
+for(const [from,to] of [['joystick-speed','joystick-range'],['joystick-range','joystick-speed']])$(from).addEventListener('input',()=>{$(to).value=$(from).value;});

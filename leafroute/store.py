@@ -27,7 +27,11 @@ class Store:
                             route = Route(item.get('points'))
                             item['points'], item['distance'] = route.points, route.length
                             item['meta'] = route_meta(item.get('meta'))
+                home = loaded.get('home')
+                if home is not None:
+                    home = point(home)
                 self.data = {k: loaded[k] for k in self.data}
+                self.data['home'] = home
             except (ValueError, OSError):
                 self.warning = '收藏資料無法讀取，原檔已保留。請先備份並修復 data/library.json，再重新啟動。'
 

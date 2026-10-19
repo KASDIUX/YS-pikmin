@@ -41,7 +41,7 @@ class Engine:
     def snapshot(self):
         total = self.play_route.length if self.play_route else (self.route.length if self.route else 0)
         return {'mode': self.mode, 'connected': self.connected, 'device': self.device.info,
-                'position': list(self.position), 'status': self.status, 'speed': self.speed,
+                'position': list(self.position), 'home': copy.deepcopy(self.store.data.get('home')), 'status': self.status, 'speed': self.speed,
                 'loop': self.loop_route, 'progress': self.progress, 'distance': total,
                 'route_distance': self.route.length if self.route else 0,
                 'route_revision': self.route_revision, 'route_meta': self.route_meta,
@@ -138,7 +138,7 @@ class Engine:
                     pass
             self.connection_phase = 'idle'
             self.connection_message = '已停止連接'
-        elif self.connection_task and not self.connection_task.done() and action in ('connect', 'scan', 'start', 'position', 'nudge'):
+        elif self.connection_task and not self.connection_task.done() and action in ('connect', 'scan', 'start', 'position', 'nudge', 'go-home', 'joystick'):
             raise ValueError('正在連接手機，請等待完成或按停止連接。')
         if action == 'plan':
             # Network I/O must never hold the device/control lock: stop stays responsive.
@@ -167,6 +167,24 @@ class Engine:
                 raise ValueError(self.message) from exc
 
     async def _command(self, action, data):
+        if action == 'set-home':
+            position = point(data.get('position'))
+            updated = copy.deepcopy(self.store.data)
+            updated['home'] = position
+            self.store.save(updated)
+            self.message = '住家位置已儲存在本機；手機位置未改變。'
+            return self.snapshot()
+        if action == 'go-home':
+            self._not_running()
+            home = self.store.data.get('home')
+            if home is None:
+                raise ValueError('請先在地圖選擇住家位置，再按「設定住家」。')
+            await self._apply(point(home))
+            self.play_route = None
+            self.progress = 0.0
+            self.status = 'idle'
+            self.message = '預覽位置已移到住家。' if self.mode == 'preview' else '住家座標已傳送至手機定位服務。'
+            return self.snapshot()
         if action == 'scan':
             self._not_running()
             result = await discover()
@@ -220,6 +238,21 @@ class Engine:
             self.progress = 0.0
             self.status = 'idle'
             self.message = '預覽位置已更新。' if self.mode == 'preview' else '座標已傳送至手機定位服務。'
+        elif action == 'joystick':
+            self._not_running()
+            bearing = data.get('bearing')
+            speed = data.get('speed')
+            strength = data.get('strength', 1)
+            if any(isinstance(x, bool) or not isinstance(x, (int, float)) or not math.isfinite(x) for x in (bearing, speed, strength)):
+                raise ValueError('搖桿參數不正確。')
+            if not 0 <= bearing < 360 or not 0.5 <= speed <= 30 or not 0 < strength <= 1:
+                raise ValueError('搖桿速度須介於 0.5～30 km/h。')
+            # One bounded step per request; no autonomous movement or queued loop.
+            await self._apply(destination(self.position, bearing, speed / 3.6 * 0.2 * strength))
+            self.play_route = None
+            self.progress = 0.0
+            self.status = 'idle'
+            self.message = '搖桿位置已更新。'
         elif action == 'nudge':
             self._not_running()
             bearing = float(data.get('bearing', 0))
