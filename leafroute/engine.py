@@ -124,6 +124,8 @@ class Engine:
                 self.connection_phase = 'idle'
 
     async def command(self, action, data):
+        if self.closed:
+            raise ValueError('程式正在結束。')
         if action == 'auto-connect':
             async with self.lock:
                 self._not_running()
@@ -404,6 +406,8 @@ class Engine:
                 self.last_time = time.monotonic()
 
     async def shutdown(self):
+        self.closed = True
+        self.status = 'idle'
         if self.connection_task and not self.connection_task.done():
             self.connection_task.cancel()
             try:
@@ -415,6 +419,6 @@ class Engine:
             self.status = 'idle'
             try:
                 if self.device.active:
-                    await asyncio.wait_for(self.device.clear(), 5)
+                    await asyncio.wait_for(self.device.clear(), 1.5)
             finally:
-                await self.device.close()
+                await asyncio.wait_for(self.device.close(), .5)

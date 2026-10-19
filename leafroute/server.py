@@ -27,6 +27,9 @@ class LocalHTTPServer(ThreadingHTTPServer):
 
 class App:
     def __init__(self, root, data_dir, port=8765):
+        self._close_lock = threading.Lock()
+        self._closed = threading.Event()
+        self.closing = False
         self.root = Path(root)
         self.token = secrets.token_urlsafe(32)
         self.http = LocalHTTPServer(('127.0.0.1', port), self.handler())
@@ -117,6 +120,8 @@ class App:
                     self.respond(400, {'error': str(exc)})
 
             def do_POST(self):
+                if app.closing:
+                    return self.respond(503, {'error': '程式正在結束，請稍候。'})
                 if not self.valid_origin() or not hmac.compare_digest(self.headers.get('X-LeafRoute-Token', ''), app.token):
                     return self.respond(403, {'error': '驗證失敗，請重新整理頁面。'})
                 try:
@@ -141,15 +146,34 @@ class App:
 
         return Handler
 
+    async def _cleanup(self):
+        # Cancel ongoing location/connection work before attempting the final reset.
+        current = asyncio.current_task()
+        tasks = [task for task in asyncio.all_tasks() if task is not current]
+        for task in tasks: task.cancel()
+        if tasks: await asyncio.wait(tasks,timeout=.3)
+        await self.engine.shutdown()
+
     def close(self):
+        from .lifecycle import close_owned_tunnels
+        if not self._close_lock.acquire(blocking=False):
+            self._closed.wait(4)
+            return
         try:
-            self.call(self.engine.shutdown())
-        except Exception as exc:
-            print(f'無法確認手機定位已還原：{exc}。請在手機確認，必要時重新啟動 iPhone。', flush=True)
+            if self._closed.is_set(): return
+            self.closing = True
+            future = asyncio.run_coroutine_threadsafe(self._cleanup(),self.loop)
+            try:
+                future.result(timeout=2.6)
+            except Exception as exc:
+                future.cancel()
+                print(f'無法確認手機定位已還原：{exc}。請在手機確認，必要時重新啟動 iPhone。',flush=True)
+            finally:
+                close_owned_tunnels(wait=.7)
+                self.http.server_close()
+                self.loop.call_soon_threadsafe(self.loop.stop)
+                self.thread.join(timeout=.2)
+                if not self.thread.is_alive(): self.loop.close()
         finally:
-            self.ticker.cancel()
-            self.http.server_close()
-            self.loop.call_soon_threadsafe(self.loop.stop)
-            self.thread.join(timeout=2)
-            if not self.thread.is_alive():
-                self.loop.close()
+            self._closed.set()
+            self._close_lock.release()

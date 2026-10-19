@@ -10,6 +10,7 @@ from urllib.request import ProxyHandler, build_opener
 
 from leafroute.server import App
 from leafroute import __version__
+from leafroute.lifecycle import ConsoleCloseHandler
 
 
 def main():
@@ -44,7 +45,8 @@ def main():
     if not args.no_browser:
         threading.Timer(0.5, lambda: webbrowser.open(app.origin)).start()
     try:
-        app.http.serve_forever(poll_interval=0.2)
+        with ConsoleCloseHandler(app.close):
+            app.http.serve_forever(poll_interval=0.2)
     except KeyboardInterrupt:
         pass
     finally:
@@ -58,6 +60,9 @@ if __name__ == '__main__':
         sys.argv = [sys.argv[0]] + sys.argv[2:]
         from pymobiledevice3.__main__ import main as device_main
         device_main()
+    elif len(sys.argv) == 3 and sys.argv[1] == '--tunnel-helper':
+        from leafroute.lifecycle import run_tunnel_helper
+        run_tunnel_helper(sys.argv[2])
     elif len(sys.argv) == 3 and sys.argv[1] == '--wifi-helper':
         import asyncio
         from leafroute.wifi import helper

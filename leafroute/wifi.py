@@ -70,7 +70,7 @@ class WifiTunnel:
         self.folder = None
         self.heartbeat = None
     async def __aenter__(self):
-        from .tunnel import launch_admin
+        from .tunnel import launch_admin_async
         self.folder = Path(tempfile.mkdtemp(prefix='ys-pikmin-wifi-'))
         (self.folder/'request.json').write_text(json.dumps({'host':private_ipv4(self.target['host']), 'id':self.target['id']}),encoding='utf-8')
         async def beat():
@@ -81,7 +81,7 @@ class WifiTunnel:
         (self.folder/'lease').touch()
         prefix = [] if getattr(sys,'frozen',False) else [str(Path(__file__).resolve().parents[1]/'start.py')]
         try:
-            await asyncio.to_thread(launch_admin, prefix+['--wifi-helper',str(self.folder)])
+            await launch_admin_async(prefix+['--wifi-helper',str(self.folder)])
             for _ in range(35):
                 file = self.folder/'result.json'
                 if file.exists():
