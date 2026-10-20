@@ -4,6 +4,8 @@ from contextlib import AsyncExitStack
 import ipaddress
 import json
 import os
+import re
+import subprocess
 from pathlib import Path
 import sys
 import tempfile
@@ -11,11 +13,53 @@ import time
 from .device import same_id
 
 
+class WifiHeartbeat:
+    """Answer the phone's Marco/Polo exchange before opening Wi-Fi services."""
+    def __init__(self, client):
+        self.client = client
+        self.service = None
+        self.task = None
+
+    async def __aenter__(self):
+        try:
+            self.service = await asyncio.wait_for(
+                self.client.start_lockdown_service('com.apple.mobile.heartbeat'), 5)
+            # A live socket alone is insufficient: finish the first exchange before
+            # CoreDeviceProxy is opened, then retain the heartbeat for its lifetime.
+            await asyncio.wait_for(self.service.recv_plist(), 5)
+            await asyncio.wait_for(self.service.send_plist({'Command':'Polo'}), 3)
+            self.task = asyncio.create_task(self._run())
+            return self
+        except BaseException:
+            await self.__aexit__(None, None, None)
+            raise
+
+    async def _run(self):
+        while True:
+            await self.service.recv_plist()
+            await self.service.send_plist({'Command':'Polo'})
+
+    def check(self):
+        if self.task and self.task.done():
+            self.task.result()
+            raise ConnectionError('Wi-Fi 保活連線已結束。')
+
+    async def __aexit__(self, *_):
+        if self.task:
+            self.task.cancel()
+            try: await self.task
+            except (asyncio.CancelledError, Exception): pass
+            self.task = None
+        if self.service:
+            try: await asyncio.wait_for(self.service.close(), 2)
+            finally: self.service = None
+
+
 def private_ipv4(value):
     try:
         ip = ipaddress.IPv4Address(str(value).strip())
     except ipaddress.AddressValueError:
-        raise ValueError('請輸入手機的區網 IPv4 位址，例如 192.168.0.103。') from None
+        raise ValueError('請輸入手機的區網 IPv4 位址，例如 10.1.2.3。') from None
     if not any(ip in ipaddress.ip_network(net) for net in ('10.0.0.0/8','172.16.0.0/12','192.168.0.0/16')):
         raise ValueError('僅接受區網 IP；不接受公網、回送或廣播位址。')
     return str(ip)
@@ -64,6 +108,21 @@ def publish(folder, data):
     os.replace(temporary,folder/'result.json')
 
 
+def prepare_helper_folder(folder):
+    # Python's private temp directories can grant OWNER RIGHTS only. Files made
+    # by the elevated child then become unreadable to the unelevated owner.
+    # Grant only this Windows user inheritable access to our own private folder.
+    if os.name != 'nt': return
+    system = Path(os.environ['SystemRoot'])/'System32'
+    options = dict(capture_output=True, text=True, errors='replace', check=True,
+                   creationflags=subprocess.CREATE_NO_WINDOW)
+    account = subprocess.run([str(system/'whoami.exe'), '/user', '/fo', 'csv', '/nh'], **options)
+    match = re.search(r'\bS-1-5-(?:\d+-)*\d+\b', account.stdout)
+    if not match: raise ValueError('無法確認本機使用者權限。')
+    subprocess.run([str(system/'icacls.exe'), str(folder), '/grant:r',
+                    '*'+match.group(0)+':(OI)(CI)F'], **options)
+
+
 class WifiTunnel:
     def __init__(self, target):
         self.target = target
@@ -72,6 +131,7 @@ class WifiTunnel:
     async def __aenter__(self):
         from .tunnel import launch_admin_async
         self.folder = Path(tempfile.mkdtemp(prefix='ys-pikmin-wifi-'))
+        prepare_helper_folder(self.folder)
         (self.folder/'request.json').write_text(json.dumps({'host':private_ipv4(self.target['host']), 'id':self.target['id']}),encoding='utf-8')
         async def beat():
             while True:
@@ -132,13 +192,16 @@ async def helper(folder):
         async with AsyncExitStack() as stack:
             async with asyncio.timeout(15):
                 client = await stack.enter_async_context(await open_paired_wifi(request['host'],identity))
+                heartbeat = await stack.enter_async_context(WifiHeartbeat(client))
                 proxy = await CoreDeviceTunnelProxy.create(client)
                 stack.push_async_callback(proxy.close)
                 tunnel = await stack.enter_async_context(proxy.start_tcp_tunnel())
                 async with RemoteServiceDiscoveryService((tunnel.address,tunnel.port)) as rsd:
                     if not same_id(rsd.udid,identity): raise ValueError('裝置識別碼不符。')
             if leased(): publish(folder,{'ready':True,'address':tunnel.address,'port':tunnel.port,'id':identity})
-            while leased(): await asyncio.sleep(.5)
+            while leased():
+                heartbeat.check()
+                await asyncio.sleep(.5)
     except BaseException as error:
         if isinstance(error,asyncio.CancelledError): raise
         detail = str(error) if isinstance(error,ValueError) else type(error).__name__

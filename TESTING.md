@@ -44,7 +44,7 @@ v0.2.0 使用獨立本機測試埠驗證「沿道路規劃」：6 個示範途�
 ## v0.3.0 一鍵連線驗證
 
 37 項單元測試通過，新增自動連線、取消、重複點擊、多裝置選擇、UAC 失敗、舊版 iOS 跳過通道與重用既有通道測試。
-實機 iOS 26.6.2 USB：從無通道狀態按連接，經 Windows 管理員確認後自動啟動通道並連接成功；停止模擬定位指令已成功送出，手機實際位置需在手機地圖確認。沒有傳送新的測試座標。Wi-Fi 尚未實機驗證。
+實機 iOS 測試裝置 USB：從無通道狀態按連接，經 Windows 管理員確認後自動啟動通道並連接成功；停止模擬定位指令已成功送出，手機實際位置需在手機地圖確認。沒有傳送新的測試座標。Wi-Fi 尚未實機驗證。
 
 
 ## v0.4.0 EXE 驗證
@@ -59,12 +59,12 @@ PyInstaller 6.22.3，Python 3.12.10，Windows x64。37 項單元測試通過。E
 
 ## Wi-Fi 診斷（2026-10-19）
 
-同一區網下，Apple 無線服務 TCP 62078 可連線，使用既有 USB 配對資料的直接 TCP lockdown 驗證成功，並確認是同一支 iOS 26.6.2 手機。自動裝置／Bonjour 掃描未找到 Network 裝置。經使用者確認 UAC 後測試 Wi-Fi CoreDeviceProxy 通道，連續兩次在 request_tunnel_establish 握手時收到 ConnectionTerminatedError；未進入 RSD 或定位服務，沒有傳送座標。結果為無線配對服務可用，但目前定位通道未驗證成功，不能宣稱 Wi-Fi 定位可用。此測試沒有更動手機無線偵錯設定。
+同一區網下，Apple 無線服務 TCP 62078 可連線，使用既有 USB 配對資料的直接 TCP lockdown 驗證成功，並確認是同一支 iOS 測試裝置 手機。自動裝置／Bonjour 掃描未找到 Network 裝置。經使用者確認 UAC 後測試 Wi-Fi CoreDeviceProxy 通道，連續兩次在 request_tunnel_establish 握手時收到 ConnectionTerminatedError；未進入 RSD 或定位服務，沒有傳送座標。結果為無線配對服務可用，但目前定位通道未驗證成功，不能宣稱 Wi-Fi 定位可用。此測試沒有更動手機無線偵錯設定。
 
 
 ## 指定 IP 調整
 
-53 項測試通過，包含私有 IP 驗證、首次裝置身分需求、無效 IP 不留下連線工作、確認目標後不借用 USB 共用通道，以及子程序失敗後停止心跳。新增指定 IP 入口與專用 TCP 通道生命週期。實機配對可用，但 iOS 26.6.2 拔除 USB 後仍在 Wi-Fi CoreDeviceProxy 握手遭 ConnectionTerminatedError。已依使用者同意暫時開啟 Wi-Fi 偵錯測試，結果仍失敗，且已確認恢復原值 False。沒有傳送定位座標。
+53 項測試通過，包含私有 IP 驗證、首次裝置身分需求、無效 IP 不留下連線工作、確認目標後不借用 USB 共用通道，以及子程序失敗後停止心跳。新增指定 IP 入口與專用 TCP 通道生命週期。實機配對可用，但 iOS 測試裝置 拔除 USB 後仍在 Wi-Fi CoreDeviceProxy 握手遭 ConnectionTerminatedError。已依使用者同意暫時開啟 Wi-Fi 偵錯測試，結果仍失敗，且已確認恢復原值 False。沒有傳送定位座標。
 
 
 ## v0.6.0 EXE 驗證
@@ -99,3 +99,14 @@ EXE 在無外部 Python PATH 環境通過 headless 啟動、預覽、住家、�
 67 項單元測試完成，66 項通過、1 項因無主控台而略過。獨立測試資料與 8771 埠的瀏覽器預覽確認搖桿為 128px、四個路線操作為 14px，三張面板底部一致且無水平溢出。方向鍵預覽能更新位置，放開後回到「放開即停」；搖桿可移動範圍改依容器及旋鈕實際尺寸計算。
 
 真正打包的 EXE 在移除外部 Python PATH 的環境通過 CLI/helper 載入、啟動、v0.7.1 HTML/CSS/JS、預覽路線、住家、搖桿無背景漂移、收藏分類與 USB 掃描。未傳送實機定位座標。本次介面以瀏覽器驗證，桌面視窗生命週期沿用 v0.7.0。
+
+
+## v0.7.2 Wi-Fi 保活與權限修正（2026-10-20）
+
+找到可重現原因：對同一 測試裝置，未啟動 com.apple.mobile.heartbeat 時 CoreDeviceProxy 服務可開啟但 CDTunnel 握手被中斷；單獨附帶既有 escrow bag 仍失敗。先收到 Marco 並送出 Polo、保持保活連線後握手成功。pymobiledevice3 9.29.1 和獨立環境 11.38.0 均有相同對照結果；保活結束後短時間可能仍有寬限，不能將這段期間成功誤認為不需要保活。
+
+leafroute.wifi.WifiHeartbeat 在進入通道前完成首次保活交換、持續回覆，監控失敗並在離開時取消與關閉。Windows 私有暫存資料夾另明確給目前使用者 SID 可繼承權限，避免管理員 helper 新建的結果檔無法由普通權限主程式讀取；沒有放寬給其他使用者。
+
+實機 USB 完全拔除後，沿用 9.29.1 及修正後 WifiTunnel 啟動獨立 helper，成功驗證 RSD 手機身分、DVT 與 LocationSimulation 服務；保持 20 秒後再次開啟定位服務成功。從未呼叫定位 set/clear，未傳送座標。測試結束確認 helper closed，未更改手機 Wi-Fi 偵錯、一般無線連線或開發者模式。
+
+71 項單元測試完成（70 通過、1 因無主控台而略過）。新增測試涵蓋首次 Polo 在回報就緒之前、首次保活失敗、後續保活故障可回報、取消等待能關閉服務。測試針對目前手動 IP 的 Wi-Fi helper 路徑；未重新驗證 Bonjour 自動發現、其他機型、長時間穩定性或實際座標傳送。本版重新打包發行。
