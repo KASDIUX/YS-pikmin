@@ -79,13 +79,17 @@ async def open_paired_wifi(host, identity):
     return client
 
 
-async def discover_wifi_ip(host, known=None):
+async def discover_wifi_ip(host, known=None, selected_id=None):
     from .device import discover
     host = private_ipv4(host)
     candidates = []
-    if isinstance(known, dict) and isinstance(known.get('id'), str):
-        candidates.append(known)
-    for device in (await discover('USB'))['devices']:
+    records = [known] if isinstance(known, dict) else known if isinstance(known, list) else []
+    candidates.extend(item for item in records if isinstance(item, dict) and isinstance(item.get('id'), str))
+    if selected_id:
+        candidates = [d for d in candidates if same_id(d['id'], selected_id)]
+        if not candidates:
+            raise ValueError('選擇的手機尚未記住，請先用 USB 連接一次。')
+    for device in ([] if selected_id else (await discover('USB'))['devices']):
         if not any(same_id(device['id'], item['id']) for item in candidates):
             candidates.append(device)
     if not candidates:

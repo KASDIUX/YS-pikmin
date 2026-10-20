@@ -110,3 +110,17 @@
 .route-mode-switch{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:10px}
 .route-mode-switch button{min-width:0;min-height:38px;padding:8px 4px;font-size:12px;white-space:nowrap}
 .route-edit-controls .route-links{margin-top:0}
+
+/* Explicit one/two-phone selection and individual acknowledgement status. */
+.device-picker{min-width:0;max-width:350px;margin:10px 0;padding:10px;border:1px solid var(--line);border-radius:8px}
+.device-card .device-picker{display:block}
+.device-picker legend{font-size:11px;color:var(--green)}
+#device-options{display:grid;gap:8px;max-height:150px;overflow:auto}
+#device-options label{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink);cursor:pointer}
+#device-options input{flex:none;margin:0;width:15px;height:15px}
+#device-options span{overflow-wrap:anywhere}
+.device-members{display:grid;gap:5px;margin-top:8px;max-width:350px}
+.device-member{font-size:11px;line-height:1.5;overflow-wrap:anywhere}
+.wifi-options label{display:block;margin:8px 0 4px}
+.wifi-options select{width:100%;font-size:12px;padding:7px}
+.wifi-options .helper{font-size:11px}

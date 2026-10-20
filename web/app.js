@@ -103,7 +103,7 @@ function render(s){
   $('set-home').disabled=!!$('set-home').dataset.busy||!Object.hasOwn(s,'home');
   $('go-home').disabled=!!$('go-home').dataset.busy||!home||running||s.connection_phase==='connecting'||(isDevice&&!s.connected);
   $('go-home').title=running?'請先暫停路線':isDevice?'將住家座標傳送至 iPhone':'在預覽中移到住家';
-  $('position-label').textContent=isDevice?(s.simulation_active?'最後送出座標':'工作台座標'):'預覽座標';
+  $('position-label').textContent=isDevice?(s.error&&(s.connected_devices||[]).some(d=>d.error)?'共用座標（同步未完成）':s.simulation_active?'最後送出座標':'工作台座標'):'預覽座標';
   $('map-mode-note').textContent=isDevice?(s.connected?'已連接定位服務':'等待重新連接'):'僅在電腦上預覽';
   if(document.activeElement!==$('speed'))$('speed').value=s.speed;
   $('loop').checked=s.loop;
@@ -132,24 +132,47 @@ function render(s){
   if(stickDisabled)stopJoystick();
   const connecting=s.connection_phase==='connecting';
   $('connect').disabled=connecting||s.connected||running;
-  $('connect').textContent=connecting?'連接中…':s.connected?'iPhone 已連接':'連接 iPhone';
+  const members=s.connected_devices||[];
+  $('connect').textContent=connecting?'連接中…':s.connected?(members.length>1?'已同步連接 '+members.length+' 台':'iPhone 已連接'):'連接 iPhone';
   $('disconnect').disabled=!connecting&&!s.connected&&!s.simulation_active;
   $('device-transport').disabled=connecting||s.connected;
   $('wifi-ip-row').hidden=$('device-transport').value!=='Network';
   $('wifi-ip').disabled=connecting||s.connected;
-  if(!$('wifi-ip').value&&s.wifi_host&&document.activeElement!==$('wifi-ip'))$('wifi-ip').value=s.wifi_host;
+  $('wifi-device').disabled=connecting||s.connected;
+  $('wifi-ip-mode').disabled=connecting||s.connected;
+  $('wifi-manual-ip').hidden=$('wifi-ip-mode').value!=='manual';
+  const wifiProfiles=s.wifi_devices||[],wifiSignature=JSON.stringify(wifiProfiles);
+  if($('wifi-device').dataset.signature!==wifiSignature){
+    const previous=$('wifi-device').value;
+    $('wifi-device').replaceChildren(new Option('搜尋手機（掃描後選擇）',''),new Option('新增／切換另一台手機','__new__'));
+    for(const d of wifiProfiles)$('wifi-device').add(new Option(d.name+' · '+d.id.slice(-6)+(d.host?' · '+d.host:''),d.id));
+    if(previous==='__new__'||wifiProfiles.some(d=>d.id===previous))$('wifi-device').value=previous;
+    $('wifi-device').dataset.signature=wifiSignature;
+  }
   $('device-status').textContent=s.connection_message|| (s.connected?'iPhone 已連接':'尚未連接裝置');
   $('device-status').classList.toggle('connection-error',s.connection_phase==='error');
   const choices=s.devices||[], signature=JSON.stringify(choices);
   if($('devices').dataset.signature!==signature){
-    const previous=$('devices').value;
-    $('devices').replaceChildren(new Option('請選擇 iPhone',''));
-    for(const d of choices)$('devices').add(new Option(d.name+' · '+d.transport+' · '+d.id.slice(-6),d.id));
-    if(choices.some(d=>d.id===previous))$('devices').value=previous;
+    const previous=new Set([...$('devices').querySelectorAll('input:checked')].map(e=>e.value));
+    $('device-options').replaceChildren();
+    for(const d of choices){
+      const row=document.createElement('label'),box=document.createElement('input'),text=document.createElement('span');
+      box.type='checkbox';box.value=d.id;box.checked=previous.has(d.id);
+      text.textContent=d.name+' · '+d.transport+' · '+d.id.slice(-6);
+      row.append(box,text);$('device-options').append(row);
+    }
     $('devices').dataset.signature=signature;
   }
-  $('devices').hidden=s.connection_phase!=='choose';
+  $('devices').hidden=s.connection_phase!=='choose'||scannedTransport!==$('device-transport').value;
   $('devices').disabled=connecting;
+  $('connected-devices').replaceChildren();
+  for(const d of members.filter(d=>d.connected||d.simulation_active||d.error)){
+    const row=document.createElement('div');
+    row.className='device-member'+(d.error?' connection-error':'');
+    row.textContent=d.name+'：'+(d.error?d.error:d.connected?(d.simulation_active?'已送出定位':'已連接 · 尚未模擬'):connecting?'正在連接…':d.simulation_active?'已中斷 · 定位尚待還原':'已中斷');
+    $('connected-devices').append(row);
+  }
+  $('connected-devices').hidden=!$('connected-devices').childElementCount;
   if(!planning){
     $('plan-road').textContent='⌁ 沿道路規劃';
     $('road-result').textContent=routeMeta.kind==='road'?({foot:'步行',bike:'騎車',car:'開車'}[routeMeta.profile]+'道路 · '+routeMeta.waypoints.length+' 個途經點'+(routeMeta.round_trip?' · 含道路回程':'')+'。開始前請先套用路線起點。'):routeMeta.kind==='gpx'?'已載入 GPX 軌跡。':'目前使用手動畫線，點與點之間直接連接。';
@@ -225,13 +248,20 @@ $('name-form').addEventListener('submit',async event=>{event.preventDefault();co
 bind('tab-route',()=>tab('route'));bind('tab-library',()=>tab('library'));
 bind('device-open',()=>$('device-dialog').showModal());
 bind('connect',async()=>{
-  if(state.connection_phase==='choose'&&scannedTransport===$('device-transport').value&&!$('devices').value)throw new Error('請先選擇要連接的 iPhone。');
-  const id=state.connection_phase==='choose'&&scannedTransport===$('device-transport').value?$('devices').value:null;
+  const choosing=state.connection_phase==='choose'&&scannedTransport===$('device-transport').value;
+  const ids=choosing?[...$('devices').querySelectorAll('input:checked')].map(e=>e.value):null;
+  if(choosing&&(!ids.length||ids.length>2))throw new Error('請勾選 1～2 台 iPhone；兩台將同步控制。');
   scannedTransport=$('device-transport').value;
-  await act('auto-connect',{transport:scannedTransport,id,host:scannedTransport==='Network'?$('wifi-ip').value.trim():null});
+  const wifiChoice=$('wifi-device').value,ipMode=$('wifi-ip-mode').value;
+  await act('auto-connect',{transport:scannedTransport,...(ids?{ids}:{}),...(scannedTransport==='Network'?{ip_mode:ipMode,host:ipMode==='manual'?$('wifi-ip').value.trim():null,wifi_id:wifiChoice&&wifiChoice!=='__new__'?wifiChoice:null,wifi_new:wifiChoice==='__new__'}:{})});
 });
 bind('disconnect',()=>act('disconnect'));
-$('device-transport').addEventListener('change',()=>{ $('devices').value='';$('wifi-ip-row').hidden=$('device-transport').value!=='Network'; });
+function resetDeviceChoice(){scannedTransport=null;$('devices').querySelectorAll('input').forEach(e=>e.checked=false);$('devices').hidden=true;}
+$('device-transport').addEventListener('change',()=>{resetDeviceChoice();$('wifi-ip-row').hidden=$('device-transport').value!=='Network';});
+$('wifi-device').addEventListener('change',()=>{resetDeviceChoice();const profile=(state.wifi_devices||[]).find(d=>d.id===$('wifi-device').value);$('wifi-ip').value=profile?.host||'';});
+$('wifi-ip-mode').addEventListener('change',()=>{resetDeviceChoice();$('wifi-manual-ip').hidden=$('wifi-ip-mode').value!=='manual';});
+$('wifi-ip').addEventListener('input',resetDeviceChoice);
+$('devices').addEventListener('change',event=>{if($('devices').querySelectorAll('input:checked').length>2){event.target.checked=false;toast('最多同步控制兩台 iPhone。',true);}});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
 Promise.all([api('state'),api('library'),api('route')]).then(([s,l,r])=>{points=r.points;routeMeta=r.meta;routeRevision=s.route_revision;library=l;render(s);select(s.position);map.setView(s.position,16,{animate:false});drawRoute();renderLibrary();}).catch(e=>toast('啟動失敗：'+e.message,true));
 setInterval(refresh,750);

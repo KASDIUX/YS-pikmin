@@ -6,6 +6,7 @@ from leafroute.tunnel import ensure_tunnel
 class MemoryStore:
     warning=''
     data={'favorites':[],'routes':[]}
+    def save(self, data): self.data=data
 class Phone:
     info=None
     active=False

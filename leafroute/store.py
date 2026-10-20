@@ -4,6 +4,22 @@ import tempfile
 from pathlib import Path
 from .geo import Route, point
 from .routing import route_meta
+from .device import same_id
+
+
+def wifi_profiles(data):
+    """Migrate the old single remembered phone without changing location records."""
+    records = []
+    items = data.get('wifi_devices', [])
+    items = list(items) if isinstance(items, list) else []
+    if isinstance(data.get('wifi_device'), dict):
+        items.append(data['wifi_device'])
+    for item in items:
+        if not isinstance(item, dict) or not all(isinstance(item.get(k), str) for k in ('id', 'name', 'ios', 'host', 'transport')) or not item['id']:
+            continue
+        if not any(same_id(item['id'], old['id']) for old in records):
+            records.append({k: item[k] for k in ('id', 'name', 'ios', 'host', 'transport')})
+    return records
 
 
 class Store:
@@ -39,6 +55,7 @@ class Store:
                 wifi = loaded.get('wifi_device')
                 if isinstance(wifi,dict) and all(isinstance(wifi.get(k),str) for k in ('id','name','ios','host','transport')):
                     self.data['wifi_device'] = {k:wifi[k] for k in ('id','name','ios','host','transport')}
+                self.data['wifi_devices'] = wifi_profiles(loaded)
             except (ValueError, OSError):
                 self.warning = '收藏資料無法讀取，原檔已保留。請先備份並修復 data/library.json，再重新啟動。'
 

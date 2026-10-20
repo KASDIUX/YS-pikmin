@@ -4,17 +4,19 @@ import math
 import time
 import uuid
 
-from .device import Device, discover, friendly_error, package_version
+from .device import Device, discover, friendly_error, package_version, same_id
+from .device_group import DeviceGroup, validate_targets
 from .tunnel import ensure_tunnel
 from .wifi import discover_wifi_ip, private_ipv4
 from .geo import Route, destination, distance, point, read_gpx
 from .routing import RoadPlanner, route_meta
+from .store import wifi_profiles
 
 
 class Engine:
     def __init__(self, store, device=None):
         self.store = store
-        self.device = device or Device()
+        self.device = device or DeviceGroup()
         self.lock = asyncio.Lock()
         self.mode = 'preview'
         self.connected = False
@@ -50,6 +52,8 @@ class Engine:
                 'traveled': self.traveled, 'laps': self.laps, 'message': self.message,
                 'error': self.error, 'simulation_active': self.device.active,
                 'package_version': package_version(), 'devices': self.devices,
+                'connected_devices': self.device.snapshot() if isinstance(self.device, DeviceGroup) else ([{**self.device.info, 'connected': self.connected, 'simulation_active': self.device.active}] if self.device.info else []),
+                'wifi_devices': wifi_profiles(self.store.data),
                 'wifi_host': (self.store.data.get('wifi_device') or {}).get('host',''), 'connection_phase': self.connection_phase, 'connection_message': self.connection_message}
 
     async def _apply(self, position):
@@ -60,6 +64,8 @@ class Engine:
                 await asyncio.wait_for(self.device.set(position), 5)
             except Exception:
                 self.connected = False
+                self.connection_phase = 'error'
+                self.connection_message = '同步傳送未完成，請檢查各台手機狀態。'
                 raise
         self.position = list(position)
 
@@ -79,38 +85,73 @@ class Engine:
         self.laps = 0
         self.status = 'idle'
 
-    async def _auto_connect(self, transport, selected_id, host=None):
+    def _remember_phones(self, targets):
+        updated = copy.deepcopy(self.store.data)
+        records = wifi_profiles(updated)
+        for target in targets:
+            old = next((d for d in records if same_id(d['id'], target['id'])), None)
+            profile = {k: str(target.get(k, '')) for k in ('id', 'name', 'ios', 'transport')}
+            profile['host'] = target.get('host') or (old or {}).get('host', '')
+            records = [d for d in records if not same_id(d['id'], target['id'])]
+            records.append(profile)
+        updated['wifi_devices'] = records
+        updated['wifi_device'] = next(d for d in records if same_id(d['id'], targets[0]['id']))
+        self.store.save(updated)
+
+    async def _auto_connect(self, transport, selected_id, host=None, wifi_id=None, wifi_new=False):
         try:
+            profiles = wifi_profiles(self.store.data)
+            known = next((d for d in profiles if d['id'] == wifi_id), None) if wifi_id else None
             if transport == 'Network' and host:
-                target = await discover_wifi_ip(host, self.store.data.get('wifi_device'))
-                updated = copy.deepcopy(self.store.data)
-                updated['wifi_device'] = target
-                self.store.save(updated)
+                target = await discover_wifi_ip(host, None if wifi_new else known or profiles, selected_id=wifi_id)
                 self.devices = [target]
             else:
                 result = await discover(transport)
-                self.devices = result['devices']
+                self.devices = copy.deepcopy(result['devices'])
+                if transport == 'Network':
+                    # Prefer live Apple discovery. A remembered IP is only a verified fallback.
+                    if not wifi_new:
+                        for profile in profiles:
+                            if profile['host'] and not any(same_id(profile['id'], d['id']) for d in self.devices):
+                                self.devices.append({**profile, 'transport': 'WiFiIP', 'remembered_ip': True})
+                    if wifi_id:
+                        self.devices = [d for d in self.devices if same_id(d['id'], wifi_id)]
+                    elif wifi_new:
+                        self.devices = [d for d in self.devices if not any(same_id(d['id'], p['id']) for p in profiles)]
             choices = self.devices
             if selected_id:
-                choices = [d for d in choices if d['id'] == selected_id]
+                selected_ids = selected_id if isinstance(selected_id, list) else [selected_id]
+                choices = [next((d for d in choices if d['id'] == identity), None) for identity in selected_ids]
+                if any(d is None for d in choices):
+                    raise ValueError('選取的手機不在本次掃描清單；請重新掃描，不會改連其他手機。')
             if not choices:
+                if transport == 'Network':
+                    raise ValueError('自動搜尋未找到可連線手機。請先用 USB 信任並記住手機，或改成手動輸入該手機目前的區網 IP。')
                 raise ValueError('未找到此連線方式的 iPhone。請接上 USB、解鎖並信任電腦；Wi-Fi 需先完成配對。')
-            if len(choices) > 1:
+            if len(choices) > 1 and not selected_id:
                 self.connection_phase = 'choose'
-                self.connection_message = '找到多部 iPhone，請選擇要連接的裝置，再按連接。'
+                self.connection_message = '找到多部 iPhone，請勾選 1～2 台（兩台將同步控制），再按連接。'
                 return
-            target = choices[0]
+            validate_targets(choices)
+            for i, target in enumerate(choices):
+                if target.get('remembered_ip'):
+                    self.connection_message = '自動搜尋未發現所選手機，正在核對該手機記錄的 IP…'
+                    choices[i] = await discover_wifi_ip(target['host'], target, selected_id=target['id'])
+            # Replace remembered placeholders with identity-verified targets.
+            for target in choices:
+                self.devices = [target if same_id(d['id'], target['id']) else d for d in self.devices]
             def report(message):
                 self.connection_message = message
-            if target['transport'] != 'WiFiIP' and (not target.get('ios') or int(target['ios'].split('.')[0]) >= 17):
-                await asyncio.wait_for(ensure_tunnel(target['id'], report), 90)
-            report('正在建立 Wi-Fi 定位通道，若出現管理員提示請允許…' if target['transport']=='WiFiIP' else '正在建立定位服務連線…')
+            for target in choices:
+                if target['transport'] != 'WiFiIP' and (not target.get('ios') or int(target['ios'].split('.')[0]) >= 17):
+                    await asyncio.wait_for(ensure_tunnel(target['id'], report), 90)
+            report(f'正在建立 {len(choices)} 台定位服務連線，若出現管理員提示請允許…')
             async with self.lock:
-                await self._command('connect', {'id': target['id']})
+                await self._command('connect', {'ids': [d['id'] for d in choices]})
                 if self.device.active:
                     await asyncio.wait_for(self.device.clear(), 5)
                 self.connection_phase = 'connected'
-                self.connection_message = '已連接 ' + target['name'] + ' · ' + target['transport']
+                self.connection_message = f'已連接 {len(choices)} 台' + ('，同步控制：' if len(choices) > 1 else '：') + '、'.join(d['name'] for d in choices)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -135,11 +176,28 @@ class Engine:
                 if transport not in ('USB', 'Network'):
                     raise ValueError('不支援的連線方式。')
                 host = data.get('host') if transport == 'Network' else None
+                wifi_id = data.get('wifi_id') if transport == 'Network' else None
+                wifi_new = data.get('wifi_new', False) if transport == 'Network' else False
+                if data.get('ip_mode') is not None and data['ip_mode'] not in ('auto', 'manual'):
+                    raise ValueError('IP 方式只能選擇自動或手動。')
+                if wifi_id is not None and (not isinstance(wifi_id, str) or not any(d['id'] == wifi_id for d in wifi_profiles(self.store.data))):
+                    raise ValueError('選擇的 Wi-Fi 手機已不在記憶清單，請重新選擇。')
+                if not isinstance(wifi_new, bool) or (wifi_new and wifi_id):
+                    raise ValueError('Wi-Fi 手機選擇不正確。')
+                if data.get('ip_mode') == 'auto':
+                    host = None
+                elif data.get('ip_mode') == 'manual' and not host:
+                    raise ValueError('請輸入選定手機的區網 IP，或切換為「自動」。')
                 if host:
                     host = private_ipv4(host)
+                selected_ids = data.get('ids')
+                if selected_ids is not None:
+                    validate_targets([{'id': identity} for identity in selected_ids] if isinstance(selected_ids, list) else selected_ids)
+                    if host and len(selected_ids) > 1:
+                        raise ValueError('指定單一 Wi-Fi IP 時只能連一台；兩台同步請用 USB 或已配對 Wi-Fi 裝置清單。')
                 self.connection_phase = 'connecting'
                 self.connection_message = '正在掃描 iPhone…'
-                self.connection_task = asyncio.create_task(self._auto_connect(transport, data.get('id'), host))
+                self.connection_task = asyncio.create_task(self._auto_connect(transport, selected_ids if selected_ids is not None else data.get('id'), host, wifi_id, wifi_new))
                 return self.snapshot()
         if action == 'disconnect':
             task = self.connection_task
@@ -170,6 +228,10 @@ class Engine:
             except Exception as exc:
                 if self.mode == 'device' and not isinstance(exc, ValueError):
                     self.connected = False
+                if self.mode == 'device' and isinstance(self.device, DeviceGroup) and not all(s['connected'] for s in self.device.states):
+                    self.connected = False
+                    self.connection_phase = 'error'
+                    self.connection_message = friendly_error(exc)
                 if self.mode == 'device' and not self.connected and self.status == 'running':
                     self.status = 'paused'
                 self.error = True
@@ -208,12 +270,24 @@ class Engine:
             self._not_running()
             if self.connected:
                 raise ValueError('請先中斷目前連線。')
-            target = next((d for d in self.devices if d['id'] == data.get('id')), None)
-            if target is None:
-                raise ValueError('請先掃描並選擇一部 iPhone。')
+            ids = data.get('ids', [data.get('id')])
+            validate_targets([{'id': identity} for identity in ids] if isinstance(ids, list) else ids)
+            targets = [next((d for d in self.devices if d['id'] == identity), None) for identity in ids]
+            if any(target is None for target in targets):
+                raise ValueError('請先掃描並選擇 1～2 台 iPhone。')
+            validate_targets(targets)
+            if isinstance(self.device, DeviceGroup) and self.device.sessions and self.device.active:
+                raise ValueError('請先按「停止連接」清理目前裝置，再重新連接。')
             await self.device.close()
             try:
-                await asyncio.wait_for(self.device.connect(target), 65 if target['transport']=='WiFiIP' else 18)
+                if isinstance(self.device, DeviceGroup):
+                    await self.device.connect_many(targets)
+                elif len(targets) == 1:
+                    target = targets[0]
+                    await asyncio.wait_for(self.device.connect(target), 65 if target['transport']=='WiFiIP' else 18)
+                else:
+                    raise ValueError('此裝置介面不支援同步連線。')
+                self._remember_phones(targets)
             except BaseException:
                 await self.device.close()
                 raise
@@ -236,9 +310,13 @@ class Engine:
         elif action == 'restore':
             self.status = 'idle'
             if self.mode == 'device':
-                if not self.connected:
+                if not self.connected and not (isinstance(self.device, DeviceGroup) and self.device.sessions):
                     raise ValueError('尚未連接，無法送出還原定位指令。請重新連接後重試；必要時重新啟動 iPhone。')
                 await asyncio.wait_for(self.device.clear(), 5)
+                if isinstance(self.device, DeviceGroup):
+                    self.connected = all(s['connected'] for s in self.device.states)
+                    self.connection_phase = 'connected'
+                    self.connection_message = f'已確認 {len(self.device.states)} 台還原指令送達，連線保留。'
                 self.message = '已送出停止模擬定位指令；請在手機地圖確認實際位置。'
             else:
                 self.message = '預覽已停止。'
