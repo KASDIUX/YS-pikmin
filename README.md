@@ -4,7 +4,7 @@ Windows 上的 iPhone GPS 路線工作台，以獨立桌面視窗操作地圖、
 
 **主程式 v0.7.4** ｜ **獨立開發者模式工具 v1.0.0**
 
-[首次使用](#首次使用) · [功能說明](#功能說明) · [更新與資料保留](#更新與資料保留) · [常見問題](#常見問題) · [版本更新紀錄](CHANGELOG.md)
+[系統需求](#系統需求) · [首次使用](#首次使用) · [功能說明](#功能說明) · [更新與資料保留](#更新與資料保留) · [常見問題](#常見問題) · [版本更新紀錄](CHANGELOG.md)
 
 ## 下載
 
@@ -14,6 +14,20 @@ Windows 上的 iPhone GPS 路線工作台，以獨立桌面視窗操作地圖、
 | 開發者模式工具 v1.0.0 | [Windows x64 ZIP](https://github.com/KASDIUX/YS-pikmin/releases/download/devmode-v1.0.0/YS-pikmin-DeveloperMode-v1.0.0-Windows-x64.zip) · [工具說明](DEVELOPER_MODE.md) | 顯示手機開發者模式選項、檢查是否已開啟 |
 
 > 一般使用者請下載 **Windows-x64.zip**。「Source code」是原始碼，沒有可直接雙擊的打包主程式。舊版僅保留版本紀錄與原始碼，已移除舊版下載附件。
+
+## 系統需求
+
+| 項目 | 需求 |
+| --- | --- |
+| 作業系統 | Windows 10／11，64 位元 **x64**；目前下載包不提供 macOS、Linux 或 Windows ARM 原生版本 |
+| 必要軟體 | [Apple Devices／Apple 裝置](https://apps.microsoft.com/detail/9np83lwlpz9k?gl=TW&hl=zh-TW)，用於手機驅動與信任配對；主程式另需 [Microsoft Edge WebView2 執行階段](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) |
+| 手機 | iPhone；首次連接需解鎖並信任電腦。iOS 16 以上需開啟「開發者模式」，iOS 17 以上的通道由主程式依連線流程準備 |
+| USB 連線 | 支援資料傳輸的 USB 線，確認 Apple Devices 能辨識手機；只有充電功能的線材無法使用 |
+| Wi-Fi 連線 | 手機與電腦在同一個可互通的區網，先完成 USB 信任配對及手機記憶流程；自動掃描找不到時可填手機目前區網 IP |
+| 網路 | 地圖圖磚、沿道路規劃及首次下載開發者映像需要網路；收藏資料保存在本機 |
+| Python | **EXE 版不需另外安裝**；只有執行原始碼或自行建置時才需 Python 3.12 與專案依賴 |
+
+> 目前已在本機 Windows x64 環境驗證，尚未在所有 Windows 版本、全新電腦或每種 iPhone／iOS 組合完整測試。不同手機的連線狀態仍需實測。
 
 ## 首次使用
 
