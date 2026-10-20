@@ -110,3 +110,6 @@ leafroute.wifi.WifiHeartbeat 在進入通道前完成首次保活交換、持續
 實機 USB 完全拔除後，沿用 9.29.1 及修正後 WifiTunnel 啟動獨立 helper，成功驗證 RSD 手機身分、DVT 與 LocationSimulation 服務；保持 20 秒後再次開啟定位服務成功。從未呼叫定位 set/clear，未傳送座標。測試結束確認 helper closed，未更改手機 Wi-Fi 偵錯、一般無線連線或開發者模式。
 
 71 項單元測試完成（70 通過、1 因無主控台而略過）。新增測試涵蓋首次 Polo 在回報就緒之前、首次保活失敗、後續保活故障可回報、取消等待能關閉服務。測試針對目前手動 IP 的 Wi-Fi helper 路徑；未重新驗證 Bonjour 自動發現、其他機型、長時間穩定性或實際座標傳送。本版重新打包發行。
+
+
+v0.7.2 發行 EXE 在移除外部 Python PATH 的環境通過啟動、版本及介面資源、內建裝置 CLI/helper 匯入、路線預覽、住家、搖桿停止及收藏分類檢查。打包版 Wi-Fi helper 額外實機測試時發生逾時；後續直接 Wi-Fi lockdown 連線亦已逾時，尚無法在該狀態確認打包版實機結果。上方 USB 拔除後的成功結果來自修正後原始碼 helper；不可將其誤記為打包版完整實機驗證。
