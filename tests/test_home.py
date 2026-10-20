@@ -9,6 +9,27 @@ class HomeTests(unittest.IsolatedAsyncioTestCase):
         self.tmp=temporary_directory();self.path=Path(self.tmp.name)/'library.json'
         self.device=FakeDevice();self.engine=Engine(Store(self.path),self.device)
     def tearDown(self): self.tmp.cleanup()
+    async def test_restart_starts_at_saved_home_in_preview_only(self):
+        for home in ([25.1,121.5],[0,0]):
+            with self.subTest(home=home):
+                await self.engine.command('set-home',{'position':home})
+                device=FakeDevice()
+                restarted=Engine(Store(self.path),device)
+                self.assertEqual(restarted.position,home)
+                self.assertEqual(restarted.snapshot()['home'],home)
+                self.assertEqual(restarted.mode,'preview')
+                self.assertFalse(restarted.connected)
+                self.assertEqual(device.positions,[])
+                restarted.position[0]+=1
+                self.assertEqual(restarted.store.data['home'],home)
+    async def test_restart_without_home_uses_default_and_preserves_old_library(self):
+        raw=json.dumps({'favorites':[],'routes':[]})
+        self.path.write_text(raw)
+        device=FakeDevice()
+        restarted=Engine(Store(self.path),device)
+        self.assertEqual(restarted.position,[25.033964,121.564468])
+        self.assertEqual(self.path.read_text(),raw)
+        self.assertEqual(device.positions,[])
     async def test_home_persists_without_moving(self):
         original=list(self.engine.position)
         await self.engine.command('set-home',{'position':[25.1,121.5]})

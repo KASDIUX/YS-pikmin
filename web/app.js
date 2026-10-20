@@ -233,7 +233,7 @@ bind('connect',async()=>{
 bind('disconnect',()=>act('disconnect'));
 $('device-transport').addEventListener('change',()=>{ $('devices').value='';$('wifi-ip-row').hidden=$('device-transport').value!=='Network'; });
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
-Promise.all([api('state'),api('library'),api('route')]).then(([s,l,r])=>{points=r.points;routeMeta=r.meta;routeRevision=s.route_revision;library=l;render(s);select(s.position);drawRoute();renderLibrary();}).catch(e=>toast('啟動失敗：'+e.message,true));
+Promise.all([api('state'),api('library'),api('route')]).then(([s,l,r])=>{points=r.points;routeMeta=r.meta;routeRevision=s.route_revision;library=l;render(s);select(s.position);map.setView(s.position,16,{animate:false});drawRoute();renderLibrary();}).catch(e=>toast('啟動失敗：'+e.message,true));
 setInterval(refresh,750);
 
 // All coordinates stay in the browser. Intl supplies current DST rules.

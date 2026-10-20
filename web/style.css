@@ -102,3 +102,11 @@
   .route-section .route-summary{flex:0;align-content:start}
 }
 @media(max-width:380px){.joystick-body{grid-template-columns:1fr}.movement-controls .joystick{margin:0 auto 8px}}
+
+
+/* Keep map modes beside the route editing actions. */
+.map-panel>.map-toolbar{justify-content:flex-end;height:52px}
+.route-edit-controls{margin-top:auto;padding-top:12px}
+.route-mode-switch{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:10px}
+.route-mode-switch button{min-width:0;min-height:38px;padding:8px 4px;font-size:12px;white-space:nowrap}
+.route-edit-controls .route-links{margin-top:0}

@@ -19,7 +19,7 @@ class Engine:
         self.mode = 'preview'
         self.connected = False
         self.devices = []
-        self.position = [25.033964, 121.564468]
+        self.position = list(store.data.get('home') or [25.033964, 121.564468])
         self.route = None
         self.route_meta = route_meta()
         self.route_revision = 0
