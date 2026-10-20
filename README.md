@@ -13,7 +13,7 @@ Windows 上的 iPhone GPS 路線工作台，以獨立桌面視窗操作地圖、
 | 主程式 v0.7.4 | [Windows x64 ZIP](https://github.com/KASDIUX/YS-pikmin/releases/download/v0.7.4/YS-pikmin-v0.7.4-Windows-x64.zip) · [版本說明與校驗檔](https://github.com/KASDIUX/YS-pikmin/releases/tag/v0.7.4) | 地圖、路線、搖桿與 iPhone 連線 |
 | 開發者模式工具 v1.0.0 | [Windows x64 ZIP](https://github.com/KASDIUX/YS-pikmin/releases/download/devmode-v1.0.0/YS-pikmin-DeveloperMode-v1.0.0-Windows-x64.zip) · [工具說明](DEVELOPER_MODE.md) | 顯示手機開發者模式選項、檢查是否已開啟 |
 
-> 一般使用者請下載 **Windows-x64.zip**。「Source code」是原始碼，沒有可直接雙擊的打包主程式。舊版僅保留版本紀錄與原始碼，已移除舊版下載附件。
+> 一般使用者請下載 **Windows-x64.zip**。「Source code」是原始碼，沒有可直接雙擊的打包主程式。Releases 只保留最新主程式與獨立工具；舊版 Release 及下載附件已移除，歷次更新內容見 [版本更新紀錄](CHANGELOG.md)，原始碼歷史與標籤仍保留。
 
 ## 系統需求
 
