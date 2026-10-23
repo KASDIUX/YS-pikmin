@@ -8,6 +8,14 @@ let state = null, selected = [25.033964,121.564468], points = [], drawing = fals
 let library = {favorites:[],routes:[]}, saveKind = 'favorites', editing = false, polling = false;
 let routeMeta = {kind:'manual'}, routeRevision = 0, planEpoch = 0, planning = false;
 let toastTimer, tileFailures = 0, scannedTransport = 'USB';
+let seenDisconnectAlert = 0;
+function renderDisconnectAlert(s){
+  const alert=s.disconnect_alert;
+  if(!alert || alert.id<=seenDisconnectAlert)return;
+  seenDisconnectAlert=alert.id;
+  $('disconnect-alert-message').textContent=alert.message;
+  if(!$('disconnect-alert').open)$('disconnect-alert').showModal();
+}
 const map = L.map('map', {zoomControl:false}).setView(selected,16);
 L.control.zoom({position:'bottomright'}).addTo(map);
 const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -94,6 +102,7 @@ map.on('click',async event=>{
 function meters(value){return value>=1000?(value/1000).toFixed(2)+' km':Math.round(value)+' m';}
 function render(s){
   state=s;current.setLatLng(s.position);updateConnector();
+  renderDisconnectAlert(s);
   const isDevice=s.mode==='device',running=s.status==='running';
   $('mode-badge').classList.toggle('device',isDevice);$('mode-badge').replaceChildren(Object.assign(document.createElement('i'),{}),document.createTextNode(isDevice?(s.connected?'iPhone 模式':'iPhone 已斷線'):'預覽模式'));
   $('notice-text').textContent=s.message==='搖桿移動中；放開即可停止。'?'搖桿位置已更新。':s.message;$('notice').classList.toggle('error',s.error);

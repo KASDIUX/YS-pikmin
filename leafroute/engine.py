@@ -40,10 +40,14 @@ class Engine:
         self.connection_task = None
         self.connection_phase = "idle"
         self.connection_message = "尚未連接裝置"
+        self.disconnect_alert = None
+        self.disconnect_sequence = 0
+        self.last_health_check = 0
+        self.disconnecting = False
 
     def snapshot(self):
         total = self.play_route.length if self.play_route else (self.route.length if self.route else 0)
-        return {'mode': self.mode, 'connected': self.connected, 'device': self.device.info,
+        return {'disconnect_alert': copy.deepcopy(self.disconnect_alert), 'mode': self.mode, 'connected': self.connected, 'device': self.device.info,
                 'position': list(self.position), 'home': copy.deepcopy(self.store.data.get('home')), 'status': self.status, 'speed': self.speed,
                 'loop': self.loop_route, 'progress': self.progress, 'distance': total,
                 'route_distance': self.route.length if self.route else 0,
@@ -63,11 +67,38 @@ class Engine:
             try:
                 await asyncio.wait_for(self.device.set(position), 5)
             except Exception:
-                self.connected = False
-                self.connection_phase = 'error'
-                self.connection_message = '同步傳送未完成，請檢查各台手機狀態。'
+                self._connection_lost()
                 raise
         self.position = list(position)
+
+    def _connection_lost(self):
+        if not self.connected or self.closed or self.disconnecting:
+            return
+        self.connected = False
+        if self.status == 'running':
+            self.status = 'paused'
+        states = self.device.snapshot() if isinstance(self.device, DeviceGroup) else []
+        names = [s['name'] for s in states if not s['connected']]
+        if not names:
+            names = [s['name'] for s in states] or [(self.device.info or {}).get('name', 'iPhone')]
+        message = '、'.join(names) + ' 連線中斷或無回應，已停止後續移動。請檢查 USB／Wi-Fi，並重新連接。'
+        if self.device.active:
+            message += '手機可能仍保留最後的模擬位置；重新連接後請按「停止」還原定位。'
+        self.disconnect_sequence += 1
+        self.disconnect_alert = {'id': self.disconnect_sequence, 'message': message, 'devices': names}
+        self.connection_phase = 'error'
+        self.connection_message = self.message = message
+        self.error = True
+
+    async def check_connection(self, now=None):
+        now = time.monotonic() if now is None else now
+        if not self.connected or self.closed or now-self.last_health_check < 5:
+            return
+        self.last_health_check = now
+        try:
+            await asyncio.wait_for(self.device.check_connection(), 4)
+        except Exception:
+            self._connection_lost()
 
     def _not_running(self):
         if self.status == 'running':
@@ -200,6 +231,9 @@ class Engine:
                 self.connection_task = asyncio.create_task(self._auto_connect(transport, selected_ids if selected_ids is not None else data.get('id'), host, wifi_id, wifi_new))
                 return self.snapshot()
         if action == 'disconnect':
+            # User-requested disconnect must not generate a lost-connection alert.
+            self.disconnecting = True
+            self.disconnect_alert = None
             task = self.connection_task
             if task and not task.done():
                 task.cancel()
@@ -226,10 +260,10 @@ class Engine:
                 self.error = False
                 return result if result is not None else self.snapshot()
             except Exception as exc:
-                if self.mode == 'device' and not isinstance(exc, ValueError):
-                    self.connected = False
-                if self.mode == 'device' and isinstance(self.device, DeviceGroup) and not all(s['connected'] for s in self.device.states):
-                    self.connected = False
+                if action != 'disconnect' and self.mode == 'device' and not isinstance(exc, ValueError):
+                    self._connection_lost()
+                if action != 'disconnect' and self.mode == 'device' and isinstance(self.device, DeviceGroup) and not all(s['connected'] for s in self.device.states):
+                    self._connection_lost()
                     self.connection_phase = 'error'
                     self.connection_message = friendly_error(exc)
                 if self.mode == 'device' and not self.connected and self.status == 'running':
@@ -240,6 +274,9 @@ class Engine:
                     self.connection_phase = 'error'
                     self.connection_message = self.message
                 raise ValueError(self.message) from exc
+            finally:
+                if action == 'disconnect':
+                    self.disconnecting = False
 
     async def _command(self, action, data):
         if action == 'set-home':
@@ -293,6 +330,8 @@ class Engine:
                 raise
             self.mode = 'device'
             self.connected = True
+            self.disconnect_alert = None
+            self.last_health_check = time.monotonic()
             self.status = 'idle'
             self.play_route = None
             self.progress = self.traveled = 0.0
@@ -480,6 +519,7 @@ class Engine:
             await asyncio.sleep(1.0 if self.mode == 'device' else 0.25)
             async with self.lock:
                 now = time.monotonic()
+                await self.check_connection(now)
                 await self.advance(now-self.last_time)
                 self.last_time = time.monotonic()
 

@@ -83,6 +83,8 @@ class Device:
         self.legacy = None
         self.info = None
         self.active = False
+        self.health = None
+        self.dvt = None
 
     async def connect(self, target):
         if package_version() != SUPPORTED_VERSION:
@@ -127,6 +129,7 @@ class Device:
                     raise ValueError('裝置識別碼不相符，已取消連接。')
                 version = rsd.product_version
                 dvt = await stack.enter_async_context(DvtProvider(rsd))
+                self.dvt = dvt
                 self.location = await stack.enter_async_context(LocationSimulation(dvt))
             self.stack = stack
             self.info = {**target, 'ios': version}
@@ -158,6 +161,18 @@ class Device:
         else:
             raise ValueError('手機尚未連接。')
 
+    async def check_connection(self):
+        """Read through the existing channel; never send or clear a GPS coordinate."""
+        if self.dvt:
+            if self.health is None:
+                from pymobiledevice3.services.dvt.instruments.device_info import DeviceInfo
+                self.health = await self.stack.enter_async_context(DeviceInfo(self.dvt))
+            await self.health.mach_time_info()
+        elif self.legacy:
+            await self.legacy.get_value(key='DeviceName')
+        else:
+            raise ConnectionError('定位服務已中斷。')
+
     async def clear(self):
         if self.location:
             await self.location.clear()
@@ -173,6 +188,7 @@ class Device:
                 await self.stack.aclose()
         finally:
             self.stack = self.location = self.legacy = self.info = None
+            self.health = self.dvt = None
 
 
 def friendly_error(error):

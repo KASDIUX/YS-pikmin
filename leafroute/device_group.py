@@ -109,6 +109,20 @@ class DeviceGroup:
     async def clear(self):
         await self._operation('clear')
 
+    async def check_connection(self):
+        async def one(index, device):
+            state = self.states[index]
+            if not state['connected']:
+                return
+            try:
+                await asyncio.wait_for(device.check_connection(), 3)
+            except Exception as error:
+                state['connected'] = False
+                state['error'] = friendly_error(error)
+        await asyncio.gather(*(one(i, d) for i, d in enumerate(self.sessions)))
+        if not self.sessions or not all(s['connected'] for s in self.states):
+            raise ConnectionError('定位服務已中斷或無回應。')
+
     async def close(self):
         async def close_one(device):
             try:

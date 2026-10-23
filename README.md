@@ -2,7 +2,10 @@
 
 Windows 上的 iPhone GPS 路線工作台，以獨立桌面視窗操作地圖、路線、方向搖桿與分類收藏。
 
-**主程式 v0.7.5** ｜ **獨立開發者模式工具 v1.0.0**
+
+**主程式 v0.7.6** ｜ **獨立開發者模式工具 v1.0.0**
+
+> v0.7.6 新增意外斷線提醒：成功連線後定期檢查，斷線或無回應時顯示需手動關閉的程式內彈窗並停止移動。主視窗最小化或在背景時，不保證提示顯示在其他程式前方。實際手機斷線情境仍待測試。
 
 > v0.7.5 支援勾選 1～2 台 iPhone 同步控制，Wi-Fi 可搜尋手機或選擇已記住的裝置，IP 提供自動／手動模式。
 
@@ -12,7 +15,7 @@ Windows 上的 iPhone GPS 路線工作台，以獨立桌面視窗操作地圖、
 
 | 項目 | 下載 | 用途 |
 | --- | --- | --- |
-| 主程式 v0.7.5 | [Windows x64 ZIP](https://github.com/KASDIUX/YS-pikmin/releases/download/v0.7.5/YS-pikmin-v0.7.5-Windows-x64.zip) · [版本說明與校驗檔](https://github.com/KASDIUX/YS-pikmin/releases/tag/v0.7.5) | 地圖、路線、搖桿與 iPhone 連線 |
+| 主程式 v0.7.6 | [Windows x64 ZIP](https://github.com/KASDIUX/YS-pikmin/releases/download/v0.7.6/YS-pikmin-v0.7.6-Windows-x64.zip) · [版本說明與校驗檔](https://github.com/KASDIUX/YS-pikmin/releases/tag/v0.7.6) | 地圖、路線、搖桿與 iPhone 連線 |
 | 開發者模式工具 v1.0.0 | [Windows x64 ZIP](https://github.com/KASDIUX/YS-pikmin/releases/download/devmode-v1.0.0/YS-pikmin-DeveloperMode-v1.0.0-Windows-x64.zip) · [工具說明](DEVELOPER_MODE.md) | 顯示手機開發者模式選項、檢查是否已開啟 |
 
 > 一般使用者請下載 **Windows-x64.zip**。「Source code」是原始碼，沒有可直接雙擊的打包主程式。建議使用上表最新版；歷次更新內容見 [版本更新紀錄](CHANGELOG.md)，原始碼歷史與標籤仍保留。
