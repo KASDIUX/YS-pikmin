@@ -68,6 +68,104 @@ class ProfileTests(unittest.IsolatedAsyncioTestCase):
             e._remember_phones([TARGETS[1]])
             self.assertEqual(next(d['host'] for d in wifi_profiles(store.data) if d['id'] == 'phone-2'), '10.1.2.9')
 
+    async def test_alias_preserves_actual_name_ip_and_other_phone(self):
+        before = copy.deepcopy(self.store.data)
+        await self.engine.command('wifi-profile-rename', {'id':'phone1', 'name':'  我的手機  '})
+        profiles = wifi_profiles(self.store.data)
+        self.assertEqual(profiles[0], {**PROFILES[0], 'alias':'我的手機'})
+        self.assertEqual(profiles[1], PROFILES[1])
+        self.assertEqual(self.store.data['wifi_device'], profiles[0])
+        self.assertEqual(self.store.data['favorites'], before['favorites'])
+        self.assertEqual(self.store.data['home'], before['home'])
+        self.assertFalse(self.engine.connected)
+
+    async def test_alias_survives_reconnect_metadata_and_restart(self):
+        with temporary_directory() as folder:
+            store = Store(Path(folder)/'library.json')
+            engine = Engine(store, DeviceGroup(Phone))
+            engine._remember_phones(PROFILES)
+            await engine.command('wifi-profile-rename', {'id':'phone-1','name':'家人的手機'})
+            engine._remember_phones([{**PROFILES[0], 'host':'10.1.2.8','name':'New actual iPhone name'}])
+            restored = Store(store.path)
+            profile = next(p for p in wifi_profiles(restored.data) if p['id']=='phone-1')
+            self.assertEqual(profile['alias'], '家人的手機')
+            self.assertEqual(profile['name'], 'New actual iPhone name')
+            self.assertEqual(profile['host'], '10.1.2.8')
+            self.assertEqual(restored.data['wifi_device']['alias'], '家人的手機')
+
+    async def test_delete_updates_legacy_pointer_without_resurrection(self):
+        with temporary_directory() as folder:
+            store = Store(Path(folder)/'library.json')
+            engine = Engine(store, DeviceGroup(Phone))
+            engine._remember_phones(PROFILES)
+            await engine.command('wifi-profile-delete', {'id':'phone1'})
+            self.assertEqual(wifi_profiles(Store(store.path).data), [PROFILES[1]])
+            self.assertEqual(store.data['wifi_device']['id'], 'phone-2')
+            await engine.command('wifi-profile-delete', {'id':'phone-2'})
+            self.assertEqual(wifi_profiles(Store(store.path).data), [])
+            self.assertNotIn('wifi_device', store.data)
+            engine._remember_phones([PROFILES[0]])
+            self.assertEqual(wifi_profiles(Store(store.path).data), [PROFILES[0]])
+
+    async def test_deleting_non_legacy_profile_keeps_other_name_and_ip(self):
+        self.store.data['wifi_devices'][0]['alias']='保留的手機'
+        self.store.data['favorite_categories']=[{'id':'point','name':'純點'}]
+        before = copy.deepcopy(self.store.data)
+        await self.engine.command('wifi-profile-delete', {'id':'phone-2'})
+        profiles = wifi_profiles(self.store.data)
+        self.assertEqual(profiles, [{**PROFILES[0], 'alias':'保留的手機'}])
+        for key in ('favorites','routes','home','favorite_categories'):
+            self.assertEqual(self.store.data[key], before[key])
+
+    async def test_legacy_only_profile_rename_and_delete(self):
+        self.store.data.pop('wifi_devices')
+        await self.engine.command('wifi-profile-rename', {'id':'phone-1','name':'舊手機'})
+        self.assertEqual(wifi_profiles(self.store.data), [{**PROFILES[0], 'alias':'舊手機'}])
+        await self.engine.command('wifi-profile-delete', {'id':'phone-1'})
+        self.assertEqual(wifi_profiles(self.store.data), [])
+
+    async def test_invalid_alias_or_identity_never_changes_memory(self):
+        before = copy.deepcopy(self.store.data)
+        for name in ('', ' ', 'a'*41, 'line\nbreak', None, []):
+            with self.assertRaises(ValueError):
+                await self.engine.command('wifi-profile-rename', {'id':'phone-1','name':name})
+            self.assertEqual(self.store.data, before)
+        for action in ('wifi-profile-rename','wifi-profile-delete'):
+            for identity in (None, [], '', 'unknown'):
+                with self.assertRaises(ValueError):
+                    await self.engine.command(action, {'id':identity,'name':'Test'})
+                self.assertEqual(self.store.data, before)
+
+    async def test_active_and_connecting_sessions_reject_profile_changes(self):
+        before = copy.deepcopy(self.store.data)
+        for mode in ('connected','active','connecting'):
+            self.engine.connected = mode=='connected'
+            self.engine.device.states = [{'simulation_active':mode=='active'}]
+            task = None
+            if mode=='connecting':
+                import asyncio
+                task=asyncio.create_task(asyncio.sleep(100))
+                self.engine.connection_task=task
+            try:
+                for action in ('wifi-profile-rename','wifi-profile-delete'):
+                    with self.assertRaises(ValueError):
+                        await self.engine.command(action, {'id':'phone-1','name':'Test'})
+                    self.assertEqual(self.store.data, before)
+            finally:
+                if task:
+                    task.cancel()
+                    try: await task
+                    except BaseException: pass
+                    self.engine.connection_task=None
+
+    async def test_failed_save_does_not_change_in_memory_profiles(self):
+        before=copy.deepcopy(self.store.data)
+        with patch.object(self.store, 'save', side_effect=OSError('test write failure')):
+            for action in ('wifi-profile-rename','wifi-profile-delete'):
+                with self.assertRaises(ValueError):
+                    await self.engine.command(action, {'id':'phone-1','name':'Test'})
+                self.assertEqual(self.store.data,before)
+
     async def test_auto_ignores_stale_host_and_uses_selected_live_phone(self):
         live = {**TARGETS[1], 'transport': 'Network'}
         with patch('leafroute.engine.discover_wifi_ip', AsyncMock()) as manual:
@@ -85,10 +183,38 @@ class ProfileTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_auto_fallback_verifies_remembered_ip_and_identity(self):
         probe = AsyncMock(return_value=PROFILES[1])
-        with patch('leafroute.engine.discover_wifi_ip', probe):
+        with patch('leafroute.engine.resolve_remembered_wifi', probe):
             await self.auto({'ip_mode': 'auto', 'wifi_id': 'phone-2'}, [])
-        probe.assert_awaited_once_with('10.1.2.4', {**PROFILES[1], 'remembered_ip': True}, selected_id='phone-2')
+        probe.assert_awaited_once()
+        self.assertEqual(probe.call_args.args[0], {**PROFILES[1], 'remembered_ip': True})
         self.assertTrue(self.engine.connected)
+
+    async def test_changed_ip_updates_selected_profile_and_preserves_alias(self):
+        self.store.data['wifi_devices'][1]['alias']='家人的手機'
+        fresh={**PROFILES[1], 'host':'10.1.2.99'}
+        with patch('leafroute.engine.resolve_remembered_wifi', AsyncMock(return_value=fresh)):
+            await self.auto({'ip_mode':'auto','wifi_id':'phone-2'}, [])
+        records=wifi_profiles(self.store.data)
+        selected=next(p for p in records if p['id']=='phone-2')
+        self.assertEqual(selected['host'],'10.1.2.99')
+        self.assertEqual(selected['alias'],'家人的手機')
+        self.assertEqual(next(p for p in records if p['id']=='phone-1'),PROFILES[0])
+
+    async def test_missing_saved_ip_can_search_and_connect(self):
+        self.store.data['wifi_devices'][1]['host']=''
+        fresh={**PROFILES[1], 'host':'10.1.2.99'}
+        with patch('leafroute.engine.resolve_remembered_wifi', AsyncMock(return_value=fresh)):
+            await self.auto({'ip_mode':'auto','wifi_id':'phone-2'}, [])
+        self.assertTrue(self.engine.connected)
+        self.assertEqual(next(p for p in wifi_profiles(self.store.data) if p['id']=='phone-2')['host'],'10.1.2.99')
+
+    async def test_failed_rediscovery_does_not_overwrite_saved_phone_or_ip(self):
+        before=copy.deepcopy(self.store.data)
+        with patch('leafroute.engine.resolve_remembered_wifi',AsyncMock(side_effect=ValueError('not found'))):
+            await self.auto({'ip_mode':'auto','wifi_id':'phone-2'}, [])
+        self.assertFalse(self.engine.connected)
+        self.assertEqual(self.engine.connection_phase,'error')
+        self.assertEqual(self.store.data,before)
 
     async def test_new_phone_auto_does_not_fall_back_to_previous_phone(self):
         with patch('leafroute.engine.discover_wifi_ip', AsyncMock()) as probe:

@@ -100,6 +100,16 @@ map.on('click',async event=>{
   }
 });
 function meters(value){return value>=1000?(value/1000).toFixed(2)+' km':Math.round(value)+' m';}
+function rememberedPhoneName(phone){
+  const identity=String(phone.id||'').replaceAll('-','').toLowerCase();
+  const saved=(state?.wifi_devices||[]).find(p=>p.id.replaceAll('-','').toLowerCase()===identity);
+  return saved?.alias||phone.alias||phone.name||'iPhone';
+}
+function renderPhoneActions(){
+  const known=(state?.wifi_devices||[]).some(p=>p.id===$('wifi-device').value);
+  const blocked=!known||state?.connected||state?.simulation_active||state?.connection_phase==='connecting';
+  for(const id of ['wifi-rename','wifi-delete'])$(id).disabled=!!blocked||!!$(id).dataset.busy;
+}
 function render(s){
   state=s;current.setLatLng(s.position);updateConnector();
   renderDisconnectAlert(s);
@@ -154,20 +164,22 @@ function render(s){
   if($('wifi-device').dataset.signature!==wifiSignature){
     const previous=$('wifi-device').value;
     $('wifi-device').replaceChildren(new Option('搜尋手機（掃描後選擇）',''),new Option('新增／切換另一台手機','__new__'));
-    for(const d of wifiProfiles)$('wifi-device').add(new Option(d.name+' · '+d.id.slice(-6)+(d.host?' · '+d.host:''),d.id));
+    for(const d of wifiProfiles)$('wifi-device').add(new Option((d.alias||d.name)+' · '+d.id.slice(-6)+(d.host?' · '+d.host:''),d.id));
     if(previous==='__new__'||wifiProfiles.some(d=>d.id===previous))$('wifi-device').value=previous;
     $('wifi-device').dataset.signature=wifiSignature;
+    if(previous!==$('wifi-device').value)$('wifi-ip').value='';
   }
+  renderPhoneActions();
   $('device-status').textContent=s.connection_message|| (s.connected?'iPhone 已連接':'尚未連接裝置');
   $('device-status').classList.toggle('connection-error',s.connection_phase==='error');
-  const choices=s.devices||[], signature=JSON.stringify(choices);
+  const choices=s.devices||[], signature=JSON.stringify(choices)+'|'+wifiSignature;
   if($('devices').dataset.signature!==signature){
     const previous=new Set([...$('devices').querySelectorAll('input:checked')].map(e=>e.value));
     $('device-options').replaceChildren();
     for(const d of choices){
       const row=document.createElement('label'),box=document.createElement('input'),text=document.createElement('span');
       box.type='checkbox';box.value=d.id;box.checked=previous.has(d.id);
-      text.textContent=d.name+' · '+d.transport+' · '+d.id.slice(-6);
+      text.textContent=rememberedPhoneName(d)+' · '+d.transport+' · '+d.id.slice(-6);
       row.append(box,text);$('device-options').append(row);
     }
     $('devices').dataset.signature=signature;
@@ -178,7 +190,7 @@ function render(s){
   for(const d of members.filter(d=>d.connected||d.simulation_active||d.error)){
     const row=document.createElement('div');
     row.className='device-member'+(d.error?' connection-error':'');
-    row.textContent=d.name+'：'+(d.error?d.error:d.connected?(d.simulation_active?'已送出定位':'已連接 · 尚未模擬'):connecting?'正在連接…':d.simulation_active?'已中斷 · 定位尚待還原':'已中斷');
+    row.textContent=rememberedPhoneName(d)+'：'+(d.error?d.error:d.connected?(d.simulation_active?'已送出定位':'已連接 · 尚未模擬'):connecting?'正在連接…':d.simulation_active?'已中斷 · 定位尚待還原':'已中斷');
     $('connected-devices').append(row);
   }
   $('connected-devices').hidden=!$('connected-devices').childElementCount;
@@ -204,8 +216,26 @@ async function refresh(){
 function tab(name){
   for(const key of ['route','library']){const on=key===name;$('tab-'+key).classList.toggle('active',on);$('tab-'+key).setAttribute('aria-selected',String(on));$('panel-'+key).hidden=!on;}
 }
-const favoriteTypeLabels={mushroom:'🍄 菇點',postcard:'✉ 明信片',point:'⌖ 純點'};
+const defaultFavoriteCategories=[{id:'mushroom',name:'菇點'},{id:'postcard',name:'明信片'},{id:'point',name:'純點'}];
+const favoriteIcons={mushroom:'🍄',postcard:'✉',point:'⌖'};
+function favoriteCategories(){return library.favorite_categories||defaultFavoriteCategories;}
+function favoriteLabel(identity){const category=favoriteCategories().find(c=>c.id===identity);return (favoriteIcons[identity]||'▱')+' '+(category?.name||'純點');}
+function renderFavoriteCategories(){
+  const categories=favoriteCategories(),filter=$('favorite-filter').value;
+  const chosen=document.querySelector('input[name="favorite-type"]:checked')?.value||'point';
+  $('favorite-filter').replaceChildren(new Option('全部收藏','all'));
+  for(const category of categories)$('favorite-filter').add(new Option(category.name,category.id));
+  $('favorite-filter').value=categories.some(c=>c.id===filter)?filter:'all';
+  $('category-rename').disabled=$('favorite-filter').value==='all';
+  const options=$('favorite-type-options');options.replaceChildren();
+  for(const category of categories){
+    const label=document.createElement('label'),input=document.createElement('input'),span=document.createElement('span'),icon=document.createElement('b');
+    input.type='radio';input.name='favorite-type';input.value=category.id;input.checked=category.id===chosen;
+    icon.textContent=favoriteIcons[category.id]||'▱';span.append(icon,document.createTextNode(category.name));label.append(input,span);options.append(label);
+  }
+}
 function renderLibrary(){
+  renderFavoriteCategories();
   $('library-count').textContent=library.favorites.length+library.routes.length;
   for(const [kind,target] of [['favorites','favorites-list'],['routes','routes-list']]){
     $(target).replaceChildren();
@@ -213,11 +243,20 @@ function renderLibrary(){
     if(!records.length){const p=document.createElement('div');p.className='empty';p.textContent=kind==='favorites'?($('favorite-filter').value==='all'?'還沒有收藏。選一個地圖位置，再按「＋ 收藏」。':'這個分類還沒有收藏。'):'把喜歡的路線存下來，下次就能接著走。';$(target).append(p);}
     for(const record of records){
       const row=document.createElement('div');row.className='library-item';
-      const load=document.createElement('button');load.className='load-item';const title=document.createElement('strong');title.textContent=record.name;const info=document.createElement('small');info.textContent=kind==='favorites'?record.position.map(x=>Number(x).toFixed(5)).join(', '):meters(record.distance)+' · '+record.points.length+' 個點';if(kind==='favorites'){const badge=document.createElement('span');badge.className='favorite-type-badge';badge.textContent=favoriteTypeLabels[record.category||'point']||favoriteTypeLabels.point;load.append(badge);}load.append(title,info);
+      const load=document.createElement('button');load.className='load-item';const title=document.createElement('strong');title.textContent=record.name;const info=document.createElement('small');info.textContent=kind==='favorites'?record.position.map(x=>Number(x).toFixed(5)).join(', '):meters(record.distance)+' · '+record.points.length+' 個點';if(kind==='favorites'){const badge=document.createElement('span');badge.className='favorite-type-badge';badge.textContent=favoriteLabel(record.category||'point');load.append(badge);}load.append(title,info);
       load.onclick=async()=>{try{tab('route');setDrawing(false);if(kind==='favorites'){select(record.position,true);toast('已選擇收藏位置，按「套用」才會更新位置。');}else{await setRoute(record.points,true,record.meta);toast('已載入路線。');}}catch(e){toast(e.message,true);}};
       const remove=document.createElement('button');remove.className='delete-item';remove.textContent='刪除';remove.setAttribute('aria-label','刪除 '+record.name);
       remove.onclick=async()=>{if(!confirm('刪除「'+record.name+'」？'))return;try{library=await act('delete',{kind,id:record.id});renderLibrary();}catch(e){toast(e.message,true);}};
-      row.append(load,remove);$(target).append(row);
+      row.append(load);
+      if(kind==='favorites'){
+        const actions=document.createElement('div'),categorySelect=document.createElement('select');actions.className='favorite-actions';
+        categorySelect.setAttribute('aria-label','更改「'+record.name+'」的分類');
+        for(const category of favoriteCategories())categorySelect.add(new Option(category.name,category.id));
+        categorySelect.value=record.category||'point';
+        categorySelect.onchange=async()=>{categorySelect.disabled=true;try{library=await act('favorite-category',{id:record.id,category:categorySelect.value});renderLibrary();toast('收藏分類已更新。');}catch(e){categorySelect.value=record.category||'point';toast(e.message,true);}finally{categorySelect.disabled=false;}};
+        actions.append(categorySelect,remove);row.append(actions);
+      }else row.append(remove);
+      $(target).append(row);
     }
   }
 }
@@ -250,7 +289,24 @@ document.querySelectorAll('[data-speed]').forEach(b=>b.addEventListener('click',
 bind('import',()=>$('gpx-file').click());
 $('gpx-file').addEventListener('change',async()=>{const file=$('gpx-file').files[0];if(!file)return;planEpoch++;try{if(file.size>2_000_000)throw new Error('GPX 檔案上限為 2 MB。');const result=await act('import',{gpx:await file.text()});points=result.points;routeMeta=result.meta;routeRevision=result.state.route_revision;drawRoute();map.fitBounds(line.getBounds(),{padding:[45,45],maxZoom:17});setDrawing(false);toast('GPX 已匯入。');}catch(e){toast(e.message,true);}finally{$('gpx-file').value='';}});
 bind('export',async()=>{const response=await fetch('/api/export');if(!response.ok){const error=await response.json();throw new Error(error.error);}const url=URL.createObjectURL(await response.blob());const a=document.createElement('a');a.href=url;a.download='YS-pikmin-'+new Date().toISOString().slice(0,10)+'.gpx';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
-function openName(kind){saveKind=kind;$('name-title').textContent=kind==='favorites'?'收藏選定位置':'儲存目前路線';$('save-name').value='';$('save-name').placeholder=kind==='favorites'?'例如：公園旁的菇點':'例如：週末散步路線';$('favorite-category').hidden=kind!=='favorites';$('name-dialog').showModal();$('save-name').focus();}
+function openName(kind){saveKind=kind;renderFavoriteCategories();const filter=$('favorite-filter').value;const radio=[...document.querySelectorAll('input[name="favorite-type"]')].find(e=>e.value===filter);if(radio)radio.checked=true;$('name-title').textContent=kind==='favorites'?'收藏選定位置':'儲存目前路線';$('save-name').value='';$('save-name').placeholder=kind==='favorites'?'例如：公園旁的菇點':'例如：週末散步路線';$('favorite-category').hidden=kind!=='favorites';$('name-dialog').showModal();$('save-name').focus();}
+let editingCategory=null;
+function openCategory(identity=null){
+  editingCategory=identity;const category=favoriteCategories().find(c=>c.id===identity);
+  $('category-title').textContent=identity?'重新命名分類':'新增收藏分類';$('category-name').value=category?.name||'';
+  $('category-error').textContent='';$('category-dialog').showModal();$('category-name').focus();
+}
+bind('category-add',()=>openCategory());bind('category-add-saving',()=>openCategory());
+bind('category-rename',()=>openCategory($('favorite-filter').value));
+bind('category-cancel',()=>$('category-dialog').close());
+$('category-form').addEventListener('submit',async event=>{
+  event.preventDefault();const button=event.submitter;button.disabled=true;$('category-error').textContent='';
+  try{const result=await act('category-save',{name:$('category-name').value,...(editingCategory?{id:editingCategory}:{})});library=result.library;renderLibrary();
+    if($('name-dialog').open){const radio=[...document.querySelectorAll('input[name="favorite-type"]')].find(e=>e.value===result.category.id);if(radio)radio.checked=true;}
+    else{$('favorite-filter').value=result.category.id;renderLibrary();}
+    $('category-dialog').close();toast('收藏分類已儲存。');
+  }catch(e){$('category-error').textContent=e.message;}finally{button.disabled=false;}
+});
 bind('save-favorite',()=>{select(coordinate($('coordinates').value));openName('favorites');});bind('save-route',()=>openName('routes'));
 bind('name-cancel',()=>$('name-dialog').close());
 $('name-form').addEventListener('submit',async event=>{event.preventDefault();const button=event.submitter;button.disabled=true;try{library=await act('save',{kind:saveKind,name:$('save-name').value,position:selected,category:document.querySelector('input[name="favorite-type"]:checked').value});renderLibrary();$('name-dialog').close();toast('已儲存在本機。');}catch(e){toast(e.message,true);}finally{button.disabled=false;}});
@@ -267,7 +323,31 @@ bind('connect',async()=>{
 bind('disconnect',()=>act('disconnect'));
 function resetDeviceChoice(){scannedTransport=null;$('devices').querySelectorAll('input').forEach(e=>e.checked=false);$('devices').hidden=true;}
 $('device-transport').addEventListener('change',()=>{resetDeviceChoice();$('wifi-ip-row').hidden=$('device-transport').value!=='Network';});
-$('wifi-device').addEventListener('change',()=>{resetDeviceChoice();const profile=(state.wifi_devices||[]).find(d=>d.id===$('wifi-device').value);$('wifi-ip').value=profile?.host||'';});
+$('wifi-device').addEventListener('change',()=>{resetDeviceChoice();const profile=(state.wifi_devices||[]).find(d=>d.id===$('wifi-device').value);$('wifi-ip').value=profile?.host||'';renderPhoneActions();});
+let editingPhoneId=null;
+bind('wifi-rename',()=>{
+  const profile=(state.wifi_devices||[]).find(d=>d.id===$('wifi-device').value);
+  if(!profile)throw new Error('請先選擇已記住的手機。');
+  editingPhoneId=profile.id;$('phone-name').value=profile.alias||profile.name;$('phone-name-error').textContent='';
+  $('phone-name-dialog').showModal();$('phone-name').focus();
+});
+bind('phone-name-cancel',()=>$('phone-name-dialog').close());
+$('phone-name-form').addEventListener('submit',async event=>{
+  event.preventDefault();const button=event.submitter;button.disabled=true;$('phone-name-error').textContent='';
+  try{await act('wifi-profile-rename',{id:editingPhoneId,name:$('phone-name').value});$('phone-name-dialog').close();toast('手機顯示名稱已儲存。');}
+  catch(e){$('phone-name-error').textContent=e.message;}finally{button.disabled=false;}
+});
+let deletingPhoneId=null;
+bind('wifi-delete',()=>{
+  const profile=(state.wifi_devices||[]).find(d=>d.id===$('wifi-device').value);
+  if(!profile)throw new Error('請先選擇已記住的手機。');
+  deletingPhoneId=profile.id;$('phone-delete-name').textContent=profile.alias||profile.name;$('phone-delete-error').textContent='';$('phone-delete-dialog').showModal();
+});
+bind('phone-delete-cancel',()=>$('phone-delete-dialog').close());
+bind('phone-delete-confirm',async()=>{
+  try{await act('wifi-profile-delete',{id:deletingPhoneId});resetDeviceChoice();$('wifi-device').value='';$('wifi-ip').value='';renderPhoneActions();$('phone-delete-dialog').close();toast('已移除手機記憶。');}
+  catch(e){$('phone-delete-error').textContent=e.message;}
+});
 $('wifi-ip-mode').addEventListener('change',()=>{resetDeviceChoice();$('wifi-manual-ip').hidden=$('wifi-ip-mode').value!=='manual';});
 $('wifi-ip').addEventListener('input',resetDeviceChoice);
 $('devices').addEventListener('change',event=>{if($('devices').querySelectorAll('input:checked').length>2){event.target.checked=false;toast('最多同步控制兩台 iPhone。',true);}});

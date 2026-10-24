@@ -7,10 +7,10 @@ import uuid
 from .device import Device, discover, friendly_error, package_version, same_id
 from .device_group import DeviceGroup, validate_targets
 from .tunnel import ensure_tunnel
-from .wifi import discover_wifi_ip, private_ipv4
+from .wifi import discover_wifi_ip, private_ipv4, resolve_remembered_wifi
 from .geo import Route, destination, distance, point, read_gpx
 from .routing import RoadPlanner, route_meta
-from .store import wifi_profiles
+from .store import wifi_profiles, favorite_categories, category_name
 
 
 class Engine:
@@ -123,6 +123,8 @@ class Engine:
             old = next((d for d in records if same_id(d['id'], target['id'])), None)
             profile = {k: str(target.get(k, '')) for k in ('id', 'name', 'ios', 'transport')}
             profile['host'] = target.get('host') or (old or {}).get('host', '')
+            if old and old.get('alias'):
+                profile['alias'] = old['alias']
             records = [d for d in records if not same_id(d['id'], target['id'])]
             records.append(profile)
         updated['wifi_devices'] = records
@@ -143,7 +145,7 @@ class Engine:
                     # Prefer live Apple discovery. A remembered IP is only a verified fallback.
                     if not wifi_new:
                         for profile in profiles:
-                            if profile['host'] and not any(same_id(profile['id'], d['id']) for d in self.devices):
+                            if not any(same_id(profile['id'], d['id']) for d in self.devices):
                                 self.devices.append({**profile, 'transport': 'WiFiIP', 'remembered_ip': True})
                     if wifi_id:
                         self.devices = [d for d in self.devices if same_id(d['id'], wifi_id)]
@@ -167,7 +169,7 @@ class Engine:
             for i, target in enumerate(choices):
                 if target.get('remembered_ip'):
                     self.connection_message = '自動搜尋未發現所選手機，正在核對該手機記錄的 IP…'
-                    choices[i] = await discover_wifi_ip(target['host'], target, selected_id=target['id'])
+                    choices[i] = await resolve_remembered_wifi(target, lambda message: setattr(self, 'connection_message', message))
             # Replace remembered placeholders with identity-verified targets.
             for target in choices:
                 self.devices = [target if same_id(d['id'], target['id']) else d for d in self.devices]
@@ -279,6 +281,38 @@ class Engine:
                     self.disconnecting = False
 
     async def _command(self, action, data):
+        if action in ('wifi-profile-rename', 'wifi-profile-delete'):
+            if self.connected or self.device.active or (self.connection_task and not self.connection_task.done()):
+                raise ValueError('請先停止連接並確認定位已還原，再編輯或刪除手機記憶。')
+            identity = data.get('id')
+            if not isinstance(identity, str) or not identity:
+                raise ValueError('請先選擇已記住的手機。')
+            records = wifi_profiles(self.store.data)
+            profile = next((p for p in records if same_id(p['id'], identity)), None)
+            if profile is None:
+                raise ValueError('這支手機已不在記憶清單，請重新選擇。')
+            if action == 'wifi-profile-rename':
+                name = data.get('name')
+                if not isinstance(name, str) or not 1 <= len(name.strip()) <= 40 or any(ord(c) < 32 or ord(c) == 127 for c in name):
+                    raise ValueError('手機顯示名稱需為 1～40 個字，且不可包含換行或控制字元。')
+                profile['alias'] = name.strip()
+            else:
+                records = [p for p in records if not same_id(p['id'], identity)]
+            updated = copy.deepcopy(self.store.data)
+            updated['wifi_devices'] = records
+            previous = updated.get('wifi_device') or {}
+            legacy = next((p for p in records if same_id(p['id'], previous.get('id', ''))), None)
+            if records:
+                updated['wifi_device'] = dict(legacy or records[0])
+            else:
+                updated.pop('wifi_device', None)
+            self.store.save(updated)
+            if action == 'wifi-profile-delete':
+                self.devices = []
+                self.connection_phase = 'idle'
+                self.connection_message = '已移除此手機的本機記憶；Apple 信任配對仍保留。'
+            self.message = '手機顯示名稱已儲存；iPhone 本身的名稱未更改。' if action == 'wifi-profile-rename' else self.connection_message
+            return self.snapshot()
         if action == 'set-home':
             position = point(data.get('position'))
             updated = copy.deepcopy(self.store.data)
@@ -447,6 +481,39 @@ class Engine:
             if self.status == 'running':
                 self.status = 'paused'
             self.message = '已暫停預覽，可繼續行走。' if self.mode == 'preview' else '已暫停；手機保留最後送出的模擬位置。'
+        elif action == 'category-save':
+            name = category_name(data.get('name'))
+            categories = favorite_categories(self.store.data)
+            identity = data.get('id')
+            category = next((c for c in categories if c['id'] == identity), None)
+            if identity is not None and category is None:
+                raise ValueError('找不到這個分類，請重新開啟收藏清單。')
+            if any(c['name'].casefold() == name.casefold() and c['id'] != identity for c in categories):
+                raise ValueError('已有相同名稱的分類，請使用其他名稱。')
+            if category is None:
+                if len(categories) >= 50:
+                    raise ValueError('分類最多 50 個。')
+                category = {'id': 'custom-' + uuid.uuid4().hex, 'name': name}
+                categories.append(category)
+            else:
+                category['name'] = name
+            updated = copy.deepcopy(self.store.data)
+            updated['favorite_categories'] = categories
+            self.store.save(updated)
+            self.message = '收藏分類已儲存。'
+            return {'library': self.store.data, 'category': copy.deepcopy(category)}
+        elif action == 'favorite-category':
+            category = data.get('category')
+            if not isinstance(category, str) or not any(c['id'] == category for c in favorite_categories(self.store.data)):
+                raise ValueError('請選擇已建立的收藏分類。')
+            updated = copy.deepcopy(self.store.data)
+            record = next((r for r in updated['favorites'] if r['id'] == data.get('id')), None)
+            if record is None:
+                raise ValueError('找不到這筆收藏，請重新開啟收藏清單。')
+            record['category'] = category
+            self.store.save(updated)
+            self.message = '收藏分類已更新，手機位置未改變。'
+            return self.store.data
         elif action == 'save':
             kind = data.get('kind')
             if kind not in ('favorites', 'routes'):
@@ -458,8 +525,8 @@ class Engine:
             if kind == 'favorites':
                 record['position'] = point(data.get('position', self.position))
                 category = data.get('category', 'point')
-                if category not in ('mushroom', 'postcard', 'point'):
-                    raise ValueError('收藏類型須為菇點、明信片或純點。')
+                if not isinstance(category, str) or not any(c['id'] == category for c in favorite_categories(self.store.data)):
+                    raise ValueError('請選擇已建立的收藏分類。')
                 record['category'] = category
             else:
                 if not self.route:

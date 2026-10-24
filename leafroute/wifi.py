@@ -106,6 +106,68 @@ async def discover_wifi_ip(host, known=None, selected_id=None):
     raise ValueError('無法以既有配對連上此 IP。請確認手機已解鎖、同一區網，且 IP 屬於已信任的 iPhone。')
 
 
+async def advertised_wifi_addresses():
+    """Read Apple Wi-Fi service announcements; never sweep a subnet."""
+    from pymobiledevice3.bonjour import browse_mobdev2
+    services = await asyncio.wait_for(browse_mobdev2(timeout=2), 4)
+    addresses = []
+    for service in services:
+        if service.port != 62078:
+            continue
+        for address in service.addresses:
+            try:
+                host = private_ipv4(address.ip)
+            except ValueError:
+                continue
+            if host not in addresses:
+                addresses.append(host)
+            if len(addresses) >= 12:
+                return addresses
+    return addresses
+
+
+async def resolve_remembered_wifi(target, report=None):
+    """Recover a changed IP using the selected phone's existing pairing only."""
+    if target.get('host'):
+        try:
+            return await discover_wifi_ip(target['host'], target, selected_id=target['id'])
+        except Exception:
+            pass
+    if report:
+        report('記錄的 IP 無法使用，正在重新搜尋這支 iPhone 的區網位址…')
+    try:
+        addresses = await advertised_wifi_addresses()
+    except Exception:
+        addresses = []
+    semaphore = asyncio.Semaphore(4)
+
+    async def probe(host):
+        async with semaphore:
+            try:
+                # Announcements are hints, not proof of device identity.
+                async with asyncio.timeout(3):
+                    async with await open_paired_wifi(host, target['id']) as client:
+                        if not same_id(client.udid, target['id']):
+                            return None
+                        return {'id': client.udid, 'name': client.all_values.get('DeviceName', 'iPhone'),
+                                'ios': client.product_version, 'transport': 'WiFiIP', 'host': host}
+            except Exception:
+                return None
+
+    tasks = [asyncio.create_task(probe(host)) for host in addresses]
+    try:
+        for task in asyncio.as_completed(tasks):
+            result = await task
+            if result:
+                return result
+    finally:
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+    raise ValueError('舊 IP 無法連線，重新搜尋也未找到這支 iPhone。請保持解鎖並連同一區網；若網路不提供裝置公告，請手動輸入新 IP 或先用 USB 連接。')
+
+
 def publish(folder, data):
     temporary = folder/'result.tmp'
     temporary.write_text(json.dumps(data,ensure_ascii=False),encoding='utf-8')

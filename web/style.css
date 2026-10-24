@@ -124,3 +124,18 @@
 .wifi-options label{display:block;margin:8px 0 4px}
 .wifi-options select{width:100%;font-size:12px;padding:7px}
 .wifi-options .helper{font-size:11px}
+.favorite-category-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px}
+.favorite-category-heading h3,.favorite-category-heading .helper{margin:0}
+.favorite-category-filter{display:flex;align-items:center;gap:8px;margin:10px 0}
+.favorite-category-filter select{flex:1;min-width:0;margin:0!important}
+.favorite-category-filter button,.favorite-category-heading button{white-space:nowrap}
+.favorite-actions{display:flex;flex-direction:column;align-items:flex-end;gap:8px;max-width:115px}
+.favorite-actions select{width:115px;max-width:100%;font-size:11px;padding:6px;border-radius:7px}
+.favorite-type-options{max-height:250px;overflow-y:auto;overscroll-behavior:contain;padding:3px;grid-auto-rows:minmax(84px,auto)}
+.favorite-type-options span{height:100%;overflow-wrap:anywhere;text-align:center}
+#category-name{width:100%;margin-top:8px}
+.category-error{color:#a3392e;font-size:13px;line-height:1.6}
+.wifi-profile-actions{display:flex;justify-content:flex-end;gap:14px;margin-top:7px}
+#wifi-delete{color:#9a5844}
+#phone-name{width:100%;margin-top:8px}
+.danger-button{color:#984b37;border-color:#cfaea2}
