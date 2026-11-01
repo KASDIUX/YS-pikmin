@@ -2,7 +2,7 @@ import asyncio
 import sys
 import unittest
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 from leafroute.wifi import advertised_wifi_addresses, resolve_remembered_wifi
 
@@ -20,6 +20,30 @@ class Client:
 
 
 class RediscoveryTests(unittest.IsolatedAsyncioTestCase):
+    async def announcements(self, responses):
+        queue=asyncio.Queue()
+        transport=Mock()
+        self.last_transport=transport
+        sent=[]
+        counts={}
+        async def send(transports, query):
+            sent.append(query)
+            counts[query]=counts.get(query,0)+1
+            packets=responses.get(query,[])
+            if callable(packets):packets=packets(counts[query])
+            for packet in packets:
+                await queue.put((packet,('10.1.2.3',5353)))
+        def parse(packet):
+            if isinstance(packet,BaseException):raise packet
+            return packet
+        module=SimpleNamespace(MOBDEV2_SERVICE_NAME='_apple-mobdev2._tcp.local.',QTYPE_PTR=12,QTYPE_SRV=33,QTYPE_A=1,
+                               _open_mdns_sockets=AsyncMock(return_value=([(transport,None)],queue)),
+                               _send_query_all=send,build_query=lambda name,kind,unicast=False:(name,kind),parse_mdns_message=parse)
+        with patch.dict(sys.modules,{'pymobiledevice3.bonjour':module}):
+            result=await advertised_wifi_addresses(timeout=.04,retry_interval=.01)
+        transport.close.assert_called_once()
+        return result,sent
+
     async def test_current_ip_is_verified_without_browsing(self):
         probe=AsyncMock(return_value=TARGET)
         with patch('leafroute.wifi.discover_wifi_ip',probe), patch('leafroute.wifi.advertised_wifi_addresses',AsyncMock()) as browse:
@@ -70,13 +94,45 @@ class RediscoveryTests(unittest.IsolatedAsyncioTestCase):
         browse.assert_not_awaited()
 
     async def test_advertisements_are_bounded_deduplicated_private_ipv4_only(self):
-        addresses=[SimpleNamespace(ip=ip) for ip in ['10.1.2.3','10.1.2.3','8.8.8.8','127.0.0.1','fe80::1','invalid']+[f'10.1.2.{i}' for i in range(4,30)]]
-        services=[SimpleNamespace(port=1234,addresses=[SimpleNamespace(ip='10.9.9.9')]),SimpleNamespace(port=62078,addresses=addresses)]
-        browse=AsyncMock(return_value=services)
-        with patch.dict(sys.modules,{'pymobiledevice3.bonjour':SimpleNamespace(browse_mobdev2=browse)}):
-            result=await advertised_wifi_addresses()
-        self.assertEqual(result,[f'10.1.2.{i}' for i in range(3,15)])
-        browse.assert_awaited_once_with(timeout=2)
+        service='_apple-mobdev2._tcp.local.'
+        name='phone.'+service
+        records=[{'type':12,'name':service,'ptrdname':name},{'type':33,'name':name,'target':'phone.local.','port':32498}]
+        records += [{'type':1,'name':'phone.local.','address':ip} for ip in ['10.1.2.3','10.1.2.3','8.8.8.8','127.0.0.1','invalid']+[f'10.1.2.{i}' for i in range(4,30)]]
+        result,_=await self.announcements({(service,12):[records]})
+        self.assertEqual(len(result),12)
+        self.assertEqual(len(set(result)),12)
+        self.assertTrue(set(result)<=set(f'10.1.2.{i}' for i in range(3,30)))
+
+    async def test_non_lockdown_advertisement_port_is_not_dropped(self):
+        service='_apple-mobdev2._tcp.local.'
+        name='phone.'+service
+        result,sent=await self.announcements({
+            (service,12):[[{'type':12,'name':service,'ptrdname':name}]],
+            (name,33):[[{'type':33,'name':name,'target':'phone.local.','port':32498}]],
+            ('phone.local.',1):[[{'type':1,'name':'phone.local.','address':'192.168.0.104'}]]})
+        self.assertEqual(result,['192.168.0.104'])
+        self.assertIn((name,33),sent)
+        self.assertIn(('phone.local.',1),sent)
+
+    async def test_retries_resolve_late_answers_and_ignore_unrelated_addresses(self):
+        service='_apple-mobdev2._tcp.local.'
+        name='phone.'+service
+        records=[{'type':12,'name':service,'ptrdname':name},{'type':33,'name':name,'target':'phone.local.','port':32498},
+                 {'type':1,'name':'other.local.','address':'192.168.0.55'},{'type':1,'name':'phone.local.','address':'192.168.0.106'}]
+        result,sent=await self.announcements({(service,12):lambda count:[records] if count>=2 else []})
+        self.assertEqual(result,['192.168.0.106'])
+        self.assertGreaterEqual(sent.count((service,12)),2)
+
+    async def test_malformed_packet_does_not_break_discovery(self):
+        service='_apple-mobdev2._tcp.local.'
+        result,_=await self.announcements({(service,12):[ValueError('malformed'),[]]})
+        self.assertEqual(result,[])
+
+    async def test_cancelled_discovery_closes_sockets(self):
+        service='_apple-mobdev2._tcp.local.'
+        with self.assertRaises(asyncio.CancelledError):
+            await self.announcements({(service,12):[asyncio.CancelledError()]})
+        self.last_transport.close.assert_called_once()
 
     async def test_success_cancels_and_awaits_other_pending_probes(self):
         entered,cancelled=asyncio.Event(),asyncio.Event()

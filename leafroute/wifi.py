@@ -5,6 +5,7 @@ import ipaddress
 import json
 import os
 import re
+import struct
 import subprocess
 from pathlib import Path
 import sys
@@ -106,24 +107,66 @@ async def discover_wifi_ip(host, known=None, selected_id=None):
     raise ValueError('無法以既有配對連上此 IP。請確認手機已解鎖、同一區網，且 IP 屬於已信任的 iPhone。')
 
 
-async def advertised_wifi_addresses():
+async def advertised_wifi_addresses(timeout=6.0, retry_interval=2.0):
     """Read Apple Wi-Fi service announcements; never sweep a subnet."""
-    from pymobiledevice3.bonjour import browse_mobdev2
-    services = await asyncio.wait_for(browse_mobdev2(timeout=2), 4)
+    from pymobiledevice3.bonjour import (MOBDEV2_SERVICE_NAME, QTYPE_PTR, QTYPE_SRV,
+                                       QTYPE_A, _open_mdns_sockets, _send_query_all,
+                                       build_query, parse_mdns_message)
+    transports, queue = await _open_mdns_sockets()
+    instances, hosts, announced = set(), set(), {}
     addresses = []
-    for service in services:
-        if service.port != 62078:
-            continue
-        for address in service.addresses:
+    loop = asyncio.get_running_loop()
+    deadline, next_retry = loop.time()+timeout, 0
+    pending = {(MOBDEV2_SERVICE_NAME, QTYPE_PTR)}
+    try:
+        while loop.time() < deadline:
+            if loop.time() >= next_retry:
+                pending.update((name, QTYPE_SRV) for name in instances)
+                pending.update((name, QTYPE_A) for name in hosts)
+                pending.add((MOBDEV2_SERVICE_NAME, QTYPE_PTR))
+                next_retry = loop.time()+retry_interval
+            for name, kind in pending:
+                await _send_query_all(transports, build_query(name, kind, unicast=False))
+            pending.clear()
             try:
-                host = private_ipv4(address.ip)
-            except ValueError:
+                packet, _ = await asyncio.wait_for(queue.get(), min(next_retry, deadline)-loop.time())
+            except asyncio.TimeoutError:
                 continue
-            if host not in addresses:
-                addresses.append(host)
-            if len(addresses) >= 12:
-                return addresses
-    return addresses
+            try:
+                records = parse_mdns_message(packet)
+            except (ValueError, IndexError, struct.error, UnicodeError):
+                continue
+            for rr in records:
+                if rr.get('type') == QTYPE_PTR and rr.get('name') == MOBDEV2_SERVICE_NAME:
+                    name = rr.get('ptrdname')
+                    if isinstance(name, str) and name.endswith('.'+MOBDEV2_SERVICE_NAME) and len(instances) < 24:
+                        if name not in instances:
+                            pending.add((name, QTYPE_SRV))
+                        instances.add(name)
+                elif rr.get('type') == QTYPE_SRV and rr.get('name') in instances:
+                    # The announced port need not be lockdown's TCP port 62078.
+                    name = rr.get('target')
+                    if isinstance(name, str) and name.endswith('.local.') and len(hosts) < 24:
+                        if name not in hosts:
+                            pending.add((name, QTYPE_A))
+                        hosts.add(name)
+                elif rr.get('type') == QTYPE_A and isinstance(rr.get('name'), str):
+                    try:
+                        host = private_ipv4(rr.get('address'))
+                    except ValueError:
+                        continue
+                    if len(announced) < 48 or rr['name'] in announced:
+                        announced.setdefault(rr['name'], set()).add(host)
+            for name in hosts:
+                for host in sorted(announced.get(name, ())):
+                    if host not in addresses:
+                        addresses.append(host)
+                    if len(addresses) >= 12:
+                        return addresses
+        return addresses
+    finally:
+        for transport, _ in transports:
+            transport.close()
 
 
 async def resolve_remembered_wifi(target, report=None):
