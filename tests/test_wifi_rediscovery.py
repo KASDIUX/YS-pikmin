@@ -4,7 +4,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
-from leafroute.wifi import advertised_wifi_addresses, resolve_remembered_wifi
+from leafroute.wifi import advertised_wifi_addresses, resolve_remembered_wifi, subnet_hosts, local_wifi_addresses
 
 TARGET={'id':'phone-1','name':'Old phone','ios':'18.1.1','transport':'WiFiIP','host':'10.1.2.3'}
 
@@ -20,6 +20,70 @@ class Client:
 
 
 class RediscoveryTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.local_patch = patch('leafroute.wifi.local_wifi_addresses', AsyncMock(return_value=[]))
+        self.local_patch.start()
+        self.addCleanup(self.local_patch.stop)
+
+    async def test_no_announcement_finds_only_selected_phone_on_local_network(self):
+        correct, wrong = Client('phone1'), Client('other-phone')
+        async def open_phone(host, identity):
+            self.assertEqual(identity, TARGET['id'])
+            return correct if host == '10.1.2.99' else wrong
+        report = Mock()
+        with patch('leafroute.wifi.discover_wifi_ip', AsyncMock(side_effect=ValueError())), \
+             patch('leafroute.wifi.advertised_wifi_addresses', AsyncMock(return_value=[])), \
+             patch('leafroute.wifi.local_wifi_addresses', AsyncMock(return_value=['10.1.2.8', '10.1.2.99'])) as local, \
+             patch('leafroute.wifi.open_paired_wifi', open_phone):
+            result = await resolve_remembered_wifi(TARGET, report)
+        self.assertEqual(result['host'], '10.1.2.99')
+        self.assertTrue(correct.closed and wrong.closed)
+        local.assert_awaited_once_with(TARGET['host'])
+        self.assertIn('區網', report.call_args.args[0])
+
+    async def test_local_search_failure_retains_clear_error(self):
+        with patch('leafroute.wifi.discover_wifi_ip', AsyncMock(side_effect=ValueError())), \
+             patch('leafroute.wifi.advertised_wifi_addresses', AsyncMock(return_value=[])), \
+             patch('leafroute.wifi.local_wifi_addresses', AsyncMock(side_effect=OSError())):
+            with self.assertRaisesRegex(ValueError, '手動輸入新 IP'):
+                await resolve_remembered_wifi(TARGET)
+
+    async def test_cancelled_local_search_propagates(self):
+        with patch('leafroute.wifi.discover_wifi_ip', AsyncMock(side_effect=ValueError())), \
+             patch('leafroute.wifi.advertised_wifi_addresses', AsyncMock(return_value=[])), \
+             patch('leafroute.wifi.local_wifi_addresses', AsyncMock(side_effect=asyncio.CancelledError())):
+            with self.assertRaises(asyncio.CancelledError):
+                await resolve_remembered_wifi(TARGET)
+
+    def test_subnets_ignore_vpn_public_linklocal_self_and_respect_small_prefix(self):
+        hosts = subnet_hosts([{'IPAddress': '26.1.2.3', 'PrefixLength': 8},
+                              {'IPAddress': '169.254.2.3', 'PrefixLength': 16},
+                              {'IPAddress': '8.8.8.8', 'PrefixLength': 24},
+                              {'IPAddress': '192.168.0.2', 'PrefixLength': 30}])
+        self.assertEqual(hosts, ['192.168.0.1'])
+
+    def test_subnets_are_bounded_and_prioritize_remembered_network(self):
+        hosts = subnet_hosts([{'IPAddress': '10.1.2.1', 'PrefixLength': 8},
+                              {'IPAddress': '10.1.2.2', 'PrefixLength': 24},
+                              {'IPAddress': '172.16.0.2', 'PrefixLength': 16},
+                              {'IPAddress': '192.168.0.110', 'PrefixLength': 24}], '192.168.0.106')
+        self.assertTrue(hosts[0].startswith('192.168.0.'))
+        self.assertLessEqual(len(hosts), 508)
+        self.assertNotIn('10.1.2.1', hosts)
+        self.assertNotIn('10.1.2.2', hosts)
+        self.assertFalse(any(h.startswith('172.16.') for h in hosts))
+
+    async def test_local_tcp_probe_uses_only_apple_port_and_closes_sockets(self):
+        self.local_patch.stop()
+        writer = Mock()
+        writer.wait_closed = AsyncMock()
+        with patch('leafroute.wifi.local_wifi_hosts', return_value=['10.1.2.8']), \
+             patch('leafroute.wifi.asyncio.open_connection', AsyncMock(return_value=(None, writer))) as connect:
+            self.assertEqual(await local_wifi_addresses(TARGET['host']), ['10.1.2.8'])
+        connect.assert_awaited_once_with('10.1.2.8', 62078)
+        writer.close.assert_called_once()
+        writer.wait_closed.assert_awaited_once()
+
     async def announcements(self, responses):
         queue=asyncio.Queue()
         transport=Mock()

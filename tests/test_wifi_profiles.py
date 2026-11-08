@@ -31,6 +31,9 @@ class ProfileTests(unittest.IsolatedAsyncioTestCase):
         self.store.data['wifi_devices'] = copy.deepcopy(PROFILES)
         self.store.data['wifi_device'] = copy.deepcopy(PROFILES[0])
         self.engine = Engine(self.store, DeviceGroup(Phone))
+        resolver = patch('leafroute.engine.resolve_remembered_wifi', AsyncMock(side_effect=ValueError('No announcement in fixture')))
+        resolver.start()
+        self.addCleanup(resolver.stop)
 
     async def auto(self, payload, discovered):
         with patch('leafroute.engine.discover', AsyncMock(return_value={'devices': discovered})), \
@@ -180,6 +183,35 @@ class ProfileTests(unittest.IsolatedAsyncioTestCase):
             await self.auto({'ip_mode': 'manual', 'host': '10.1.2.8', 'wifi_id': 'phone-2'}, [])
         probe.assert_awaited_once_with('10.1.2.8', PROFILES[1], selected_id='phone-2')
         self.assertEqual(self.engine.device.states[0]['id'], 'phone-2')
+
+    async def test_live_apple_connection_refreshes_ip_and_keeps_transport_and_alias(self):
+        with temporary_directory() as folder:
+            self.store = Store(Path(folder)/'library.json')
+            self.store.save({'favorites': [], 'routes': [], 'wifi_devices': copy.deepcopy(PROFILES)})
+            self.engine = Engine(self.store, DeviceGroup(Phone))
+            await self.engine.command('wifi-profile-rename', {'id': 'phone-2', 'name': '我的手機'})
+            fresh = {**PROFILES[1], 'host': '10.1.2.99'}
+            with patch('leafroute.engine.resolve_remembered_wifi', AsyncMock(return_value=fresh)) as resolve:
+                await self.auto({'wifi_id': 'phone-2'}, [{**TARGETS[1], 'transport': 'Network'}])
+            self.assertEqual(resolve.call_args.args[0]['host'], PROFILES[1]['host'])
+            self.assertTrue(self.engine.connected)
+            self.assertEqual(self.engine.devices[0]['transport'], 'Network')
+            selected = next(p for p in self.engine.snapshot()['wifi_devices'] if p['id'] == 'phone-2')
+            self.assertEqual(selected['host'], '10.1.2.99')
+            self.assertEqual(selected['alias'], '我的手機')
+            self.assertEqual(wifi_profiles(Store(self.store.path).data), self.engine.snapshot()['wifi_devices'])
+            self.assertEqual(next(p for p in wifi_profiles(self.store.data) if p['id'] == 'phone-1'), PROFILES[0])
+
+    async def test_live_apple_connection_still_works_if_ip_refresh_fails(self):
+        await self.auto({'wifi_id': 'phone-2'}, [{**TARGETS[1], 'transport': 'Network'}])
+        self.assertTrue(self.engine.connected)
+        self.assertEqual(next(p for p in wifi_profiles(self.store.data) if p['id'] == 'phone-2')['host'], PROFILES[1]['host'])
+
+    async def test_live_apple_connection_never_saves_another_phones_ip(self):
+        with patch('leafroute.engine.resolve_remembered_wifi', AsyncMock(return_value=PROFILES[0])):
+            await self.auto({'wifi_id': 'phone-2'}, [{**TARGETS[1], 'transport': 'Network'}])
+        self.assertTrue(self.engine.connected)
+        self.assertEqual(next(p for p in wifi_profiles(self.store.data) if p['id'] == 'phone-2')['host'], PROFILES[1]['host'])
 
     async def test_auto_fallback_verifies_remembered_ip_and_identity(self):
         probe = AsyncMock(return_value=PROFILES[1])

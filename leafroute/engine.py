@@ -170,6 +170,18 @@ class Engine:
                 if target.get('remembered_ip'):
                     self.connection_message = '自動搜尋未發現所選手機，正在核對該手機記錄的 IP…'
                     choices[i] = await resolve_remembered_wifi(target, lambda message: setattr(self, 'connection_message', message))
+                elif target.get('transport') == 'Network' and not target.get('host'):
+                    # Apple usbmux reports the phone identity but omits its IP.
+                    # Refresh metadata without changing its working connection path.
+                    saved = next((p for p in profiles if same_id(p['id'], target['id'])), {})
+                    self.connection_message = '已找到手機，正在核對目前的 Wi-Fi IP…'
+                    try:
+                        fresh = await resolve_remembered_wifi({**target, 'host': saved.get('host', '')})
+                        if same_id(fresh['id'], target['id']):
+                            choices[i] = {**target, 'host': fresh['host']}
+                    except Exception:
+                        # Missing mDNS must not prevent an available Apple connection.
+                        pass
             # Replace remembered placeholders with identity-verified targets.
             for target in choices:
                 self.devices = [target if same_id(d['id'], target['id']) else d for d in self.devices]

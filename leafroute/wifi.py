@@ -169,6 +169,74 @@ async def advertised_wifi_addresses(timeout=6.0, retry_interval=2.0):
             transport.close()
 
 
+def local_wifi_hosts(previous_host=''):
+    """Bound discovery to two directly attached RFC1918 IPv4 segments."""
+    if os.name != 'nt':
+        return []
+    powershell = Path(os.environ['SystemRoot'])/'System32/WindowsPowerShell/v1.0/powershell.exe'
+    command = "Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop | Where-Object AddressState -eq Preferred | Select-Object IPAddress,PrefixLength | ConvertTo-Json -Compress"
+    result = subprocess.run([str(powershell), '-NoProfile', '-NonInteractive', '-Command', command],
+                            capture_output=True, text=True, timeout=6,
+                            creationflags=subprocess.CREATE_NO_WINDOW, check=True)
+    return subnet_hosts(json.loads(result.stdout), previous_host)
+
+
+def subnet_hosts(interfaces, previous_host=''):
+    """Use actual interface prefixes, capped at /24 even on large networks."""
+    interfaces = [interfaces] if isinstance(interfaces, dict) else interfaces
+    networks, own = [], set()
+    if not isinstance(interfaces, list):
+        return []
+    for interface in interfaces[:32]:
+        try:
+            address = private_ipv4(interface['IPAddress'])
+            prefix = interface['PrefixLength']
+            if type(prefix) is not int or not 8 <= prefix <= 30:
+                continue
+            own.add(address)
+            network = ipaddress.ip_network(f'{address}/{max(prefix, 24)}', strict=False)
+            if network not in networks:
+                networks.append(network)
+        except (ValueError, TypeError, KeyError):
+            continue
+    try:
+        previous = ipaddress.IPv4Address(previous_host)
+        networks.sort(key=lambda network: previous not in network)
+    except ipaddress.AddressValueError:
+        pass
+    return [str(host) for network in networks[:2] for host in network.hosts() if str(host) not in own]
+
+
+async def local_wifi_addresses(previous_host=''):
+    """Probe only Apple's TCP port; these candidates still need paired identity checks."""
+    hosts = await asyncio.to_thread(local_wifi_hosts, previous_host)
+    semaphore = asyncio.Semaphore(32)
+    async def probe(host):
+        async with semaphore:
+            writer = None
+            try:
+                _, writer = await asyncio.wait_for(asyncio.open_connection(host, 62078), .45)
+                return host
+            except (OSError, asyncio.TimeoutError):
+                return None
+            finally:
+                if writer:
+                    writer.close()
+                    try:
+                        await asyncio.wait_for(writer.wait_closed(), .2)
+                    except (OSError, asyncio.TimeoutError):
+                        pass
+    tasks = [asyncio.create_task(probe(host)) for host in hosts[:508]]
+    try:
+        results = await asyncio.gather(*tasks)
+        return [host for host in results if host]
+    finally:
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+
 async def resolve_remembered_wifi(target, report=None):
     """Recover a changed IP using the selected phone's existing pairing only."""
     if target.get('host'):
@@ -197,18 +265,35 @@ async def resolve_remembered_wifi(target, report=None):
             except Exception:
                 return None
 
-    tasks = [asyncio.create_task(probe(host)) for host in addresses]
+    async def verify(hosts):
+        tasks = [asyncio.create_task(probe(host)) for host in hosts]
+        try:
+            for task in asyncio.as_completed(tasks):
+                result = await task
+                if result:
+                    return result
+        finally:
+            for task in tasks:
+                task.cancel()
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
+    result = await verify(addresses)
+    if result:
+        return result
+    if report:
+        report('未收到可用的手機公告，正在區網尋找並核對所選 iPhone，請保持解鎖…')
     try:
-        for task in asyncio.as_completed(tasks):
-            result = await task
-            if result:
-                return result
-    finally:
-        for task in tasks:
-            task.cancel()
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
-    raise ValueError('舊 IP 無法連線，重新搜尋也未找到這支 iPhone。請保持解鎖並連同一區網；若網路不提供裝置公告，請手動輸入新 IP 或先用 USB 連接。')
+        candidates = await local_wifi_addresses(target.get('host', ''))
+    except Exception:
+        candidates = []
+    try:
+        async with asyncio.timeout(12):
+            result = await verify([host for host in candidates if host not in addresses])
+    except asyncio.TimeoutError:
+        result = None
+    if result:
+        return result
+    raise ValueError('舊 IP 無法連線，重新搜尋也未找到這支 iPhone。已嘗試裝置公告與區網搜尋；請保持解鎖並連同一區網，必要時手動輸入新 IP 或先用 USB 連接。')
 
 
 def publish(folder, data):

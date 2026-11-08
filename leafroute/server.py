@@ -106,7 +106,7 @@ class App:
                     if path == '/':
                         html = (app.root/'web/index.html').read_text(encoding='utf-8').replace('__TOKEN__', app.token)
                         return self.respond(200, html.encode('utf-8'), 'text/html; charset=utf-8')
-                    allowed = {'/app.js', '/style.css', '/icon.svg', '/vendor/leaflet.js', '/vendor/leaflet.css'}
+                    allowed = {'/app.js', '/mushrooms.js', '/style.css', '/icon.svg', '/vendor/leaflet.js', '/vendor/leaflet.css'}
                     if path not in allowed:
                         return self.respond(404, {'error': '找不到檔案。'})
                     file = app.root/'web'/path.lstrip('/')
