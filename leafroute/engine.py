@@ -163,7 +163,7 @@ class Engine:
                 raise ValueError('未找到此連線方式的 iPhone。請接上 USB、解鎖並信任電腦；Wi-Fi 需先完成配對。')
             if len(choices) > 1 and not selected_id:
                 self.connection_phase = 'choose'
-                self.connection_message = '找到多部 iPhone，請勾選 1～2 台（兩台將同步控制），再按連接。'
+                self.connection_message = '找到多部 iPhone，請勾選 1～3 台（所選手機將同步控制），再按連接。'
                 return
             validate_targets(choices)
             for i, target in enumerate(choices):
@@ -239,7 +239,7 @@ class Engine:
                 if selected_ids is not None:
                     validate_targets([{'id': identity} for identity in selected_ids] if isinstance(selected_ids, list) else selected_ids)
                     if host and len(selected_ids) > 1:
-                        raise ValueError('指定單一 Wi-Fi IP 時只能連一台；兩台同步請用 USB 或已配對 Wi-Fi 裝置清單。')
+                        raise ValueError('指定單一 Wi-Fi IP 時只能連一台；多台同步請用 USB 或已配對 Wi-Fi 裝置清單。')
                 self.connection_phase = 'connecting'
                 self.connection_message = '正在掃描 iPhone…'
                 self.connection_task = asyncio.create_task(self._auto_connect(transport, selected_ids if selected_ids is not None else data.get('id'), host, wifi_id, wifi_new))
@@ -357,7 +357,7 @@ class Engine:
             validate_targets([{'id': identity} for identity in ids] if isinstance(ids, list) else ids)
             targets = [next((d for d in self.devices if d['id'] == identity), None) for identity in ids]
             if any(target is None for target in targets):
-                raise ValueError('請先掃描並選擇 1～2 台 iPhone。')
+                raise ValueError('請先掃描並選擇 1～3 台 iPhone。')
             validate_targets(targets)
             if isinstance(self.device, DeviceGroup) and self.device.sessions and self.device.active:
                 raise ValueError('請先按「停止連接」清理目前裝置，再重新連接。')

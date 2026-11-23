@@ -1,4 +1,4 @@
-"""One shared position, at most two independently tracked device sessions."""
+"""One shared position, at most three independently tracked device sessions."""
 import asyncio
 import copy
 
@@ -6,8 +6,8 @@ from .device import Device, friendly_error, same_id
 
 
 def validate_targets(targets):
-    if not isinstance(targets, list) or not 1 <= len(targets) <= 2:
-        raise ValueError('請選擇 1～2 台 iPhone。')
+    if not isinstance(targets, list) or not 1 <= len(targets) <= 3:
+        raise ValueError('請選擇 1～3 台 iPhone。')
     identities = []
     for target in targets:
         identity = target.get('id') if isinstance(target, dict) else None

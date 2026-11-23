@@ -204,8 +204,8 @@ class SyncTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(p.closes for p in self.phones))
         self.assertFalse(self.engine.connected)
 
-    async def test_duplicates_unknown_ids_and_more_than_two_are_rejected_before_connection(self):
-        for ids in [['phone-1', 'phone1'], ['phone-1', 'missing'], ['phone-1'] * 3, [], 'phone-1', [True]]:
+    async def test_duplicates_unknown_ids_and_more_than_three_are_rejected_before_connection(self):
+        for ids in [['phone-1', 'phone1'], ['phone-1', 'missing'], ['phone-1', 'phone-2', 'phone-3', 'phone-4'], [], 'phone-1', [True]]:
             with self.subTest(ids=ids), self.assertRaises(ValueError):
                 await self.engine.command('connect', {'ids': ids})
         self.assertEqual([p.info for p in self.phones], [None, None])
@@ -258,3 +258,79 @@ class SyncTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(self.group.active)
         await self.group.clear()
         self.assertFalse(self.group.active)
+
+class ThreePhoneTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.targets = TARGETS + [{**TARGETS[0], 'id': 'phone-3', 'name': 'Test 3'}]
+        self.phones = [Phone() for _ in self.targets]
+        for phone in self.phones:
+            phone.check_connection = AsyncMock()
+        pool = iter(self.phones)
+        self.group = DeviceGroup(lambda: next(pool))
+        self.engine = Engine(MemoryStore(), self.group)
+        self.engine.devices = copy.deepcopy(self.targets)
+
+    async def connect(self):
+        await self.engine.command('connect', {'ids': [t['id'] for t in self.targets]})
+
+    async def test_three_phone_controls_route_and_shutdown(self):
+        await self.connect()
+        self.assertEqual(self.group.info['count'], 3)
+        self.assertEqual([p.positions for p in self.phones], [[], [], []])
+        for action, data in [('position', {'position': [25.1, 121.1]}), ('go-home', {}),
+                             ('joystick', {'bearing': 90, 'speed': 8})]:
+            await self.engine.command(action, data)
+            self.assertTrue(all(p.positions[-1] == self.engine.position for p in self.phones))
+        await self.engine.command('route', {'points': [[25, 121], [25.01, 121.01]]})
+        await self.engine.command('start', {})
+        await self.engine.advance(1)
+        self.assertTrue(all(p.positions == self.phones[0].positions for p in self.phones))
+        await self.engine.shutdown()
+        self.assertEqual([p.clears for p in self.phones], [1, 1, 1])
+        self.assertTrue(all(p.closes for p in self.phones))
+
+    async def test_third_connection_failure_closes_every_session(self):
+        self.phones[2].fail_connect = True
+        with self.assertRaisesRegex(ValueError, 'Test 3'):
+            await self.connect()
+        self.assertFalse(self.engine.connected)
+        self.assertTrue(all(p.closes for p in self.phones))
+        self.assertTrue(all(not p.positions for p in self.phones))
+
+    async def test_third_send_failure_stops_route_and_alerts(self):
+        await self.connect()
+        await self.engine.command('route', {'points': [[25, 121], [25.01, 121.01]]})
+        await self.engine.command('start', {})
+        self.phones[2].fail_set = True
+        await self.engine.advance(1)
+        self.assertEqual(self.engine.status, 'paused')
+        self.assertEqual(self.engine.disconnect_alert['devices'], ['Test 3'])
+        counts = [len(p.positions) for p in self.phones]
+        await self.engine.advance(1)
+        self.assertEqual([len(p.positions) for p in self.phones], counts)
+        await self.engine.command('disconnect', {})
+        self.assertEqual([p.clears for p in self.phones], [1, 1, 1])
+
+    async def test_third_idle_disconnect_alert(self):
+        await self.connect()
+        self.phones[2].check_connection.side_effect = OSError('offline')
+        self.engine.last_health_check = 0
+        await self.engine.check_connection(10)
+        self.assertFalse(self.engine.connected)
+        self.assertEqual(self.engine.disconnect_alert['devices'], ['Test 3'])
+        self.assertTrue(all(not p.positions for p in self.phones))
+
+    async def test_wifi_scan_then_connect_three_and_remember_each(self):
+        targets = [{**t, 'transport': 'Network', 'host': f'10.1.2.{i+3}'} for i, t in enumerate(self.targets)]
+        with patch('leafroute.engine.discover', AsyncMock(return_value={'devices': targets})), \
+             patch('leafroute.engine.ensure_tunnel', AsyncMock()) as tunnel:
+            await self.engine.command('auto-connect', {'transport': 'Network', 'ip_mode': 'auto'})
+            await self.engine.connection_task
+            self.assertEqual(self.engine.connection_phase, 'choose')
+            await self.engine.command('auto-connect', {'transport': 'Network', 'ip_mode': 'auto', 'ids': [t['id'] for t in targets]})
+            await self.engine.connection_task
+        self.assertTrue(self.engine.connected)
+        self.assertEqual(self.group.info['count'], 3)
+        self.assertEqual([c.args[0] for c in tunnel.await_args_list], [t['id'] for t in targets])
+        self.assertEqual(len(self.engine.store.data['wifi_devices']), 3)
+        self.assertTrue(all(not p.positions for p in self.phones))

@@ -24,7 +24,7 @@ const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(map);
 tiles.on('tileerror',()=>{ if(++tileFailures>=3) $('tile-warning').hidden=false; });
 tiles.on('tileload',()=>{ tileFailures=0; $('tile-warning').hidden=true; });
-const current = L.marker(selected,{icon:L.divIcon({className:'current-marker',iconSize:[20,20],iconAnchor:[10,10]}),interactive:false,zIndexOffset:600}).addTo(map);
+const current = L.marker(selected,{icon:L.divIcon({className:'current-marker',iconSize:[20,20],iconAnchor:[10,10]}),interactive:false,zIndexOffset:800}).addTo(map);
 const selection = L.marker(selected,{icon:L.divIcon({className:'selection-marker',iconSize:[14,14],iconAnchor:[7,7]}),interactive:false,zIndexOffset:700}).addTo(map);
 const line = L.polyline([],{color:'#3c6a4f',weight:4,opacity:.85,lineJoin:'round'}).addTo(map);
 const routeDots = L.layerGroup().addTo(map);
@@ -56,8 +56,17 @@ function coordinate(value){
   if(parts.length!==2 || !parts.every(Number.isFinite) || Math.abs(parts[0])>90 || Math.abs(parts[1])>180) throw new Error('請輸入有效的「緯度, 經度」，例如 25.033964, 121.564468。');
   return parts;
 }
+function updateSelectionMarker(){
+  const overlaps=state&&map.distance(state.position,selected)<0.1;
+  selection.setOpacity(overlaps?0:1);
+}
+function resetApplyFeedback(){
+  $('selection-help').textContent='地圖選點後按「套用」，才會更新位置。';
+  $('selection-help').classList.remove('applied');
+}
 function select(position,pan=false){
   selected=[...position];selection.setLatLng(position);$('coordinates').value=position.map(x=>Number(x).toFixed(6)).join(', ');
+  updateSelectionMarker();resetApplyFeedback();
   updateSelectedTimezone(position);
   if(pan) map.panTo(position);
 }
@@ -111,7 +120,7 @@ function renderPhoneActions(){
   for(const id of ['wifi-rename','wifi-delete'])$(id).disabled=!!blocked||!!$(id).dataset.busy;
 }
 function render(s){
-  state=s;current.setLatLng(s.position);updateConnector();
+  state=s;current.setLatLng(s.position);updateSelectionMarker();updateConnector();
   renderDisconnectAlert(s);
   const isDevice=s.mode==='device',running=s.status==='running';
   $('mode-badge').classList.toggle('device',isDevice);$('mode-badge').replaceChildren(Object.assign(document.createElement('i'),{}),document.createTextNode(isDevice?(s.connected?'iPhone 模式':'iPhone 已斷線'):'預覽模式'));
@@ -264,7 +273,19 @@ async function settings(){await act('settings',{speed:Number($('speed').value),l
 bind('select-mode',()=>setDrawing(false));bind('draw-mode',()=>{tab('route');setDrawing(true);});
 bind('center',()=>map.setView(state.position,Math.max(map.getZoom(),16)));
 bind('fit',()=>{if(points.length)map.fitBounds(line.getBounds(),{padding:[45,45],maxZoom:17});});
-bind('go',async()=>{const p=coordinate($('coordinates').value);await act('position',{position:p});select(p,true);});
+bind('go',async()=>{
+  resetApplyFeedback();
+  const p=coordinate($('coordinates').value);
+  $('selection-help').textContent='正在套用座標…';
+  let result;
+  try{result=await act('position',{position:p});}
+  catch(error){$('selection-help').textContent='套用未完成，請查看錯誤提示與各台手機狀態。';throw error;}
+  select(p,true);
+  const message=result.mode==='device'?'✓ 座標已送出至 '+(result.connected_devices||[]).filter(d=>d.connected).length+' 台 iPhone；請在手機確認遊戲位置。':'✓ 已套用至預覽位置；未改變手機定位。';
+  $('selection-help').textContent=message;$('selection-help').classList.add('applied');
+  toast(message);
+});
+$('coordinates').addEventListener('input',resetApplyFeedback);
 $('coordinates').addEventListener('keydown',e=>{if(e.key==='Enter')$('go').click();});
 bind('undo',async()=>{const draft=routeMeta.kind==='road'?routeMeta.waypoints:points;if(draft.length<=2){const keep=draft.slice(0,-1);await setRoute([]);points=keep;drawRoute();if(state)render(state);}else await setRoute(draft.slice(0,-1));});
 bind('clear-route',async()=>{await setRoute([]);setDrawing(false);});
@@ -315,7 +336,7 @@ bind('device-open',()=>$('device-dialog').showModal());
 bind('connect',async()=>{
   const choosing=state.connection_phase==='choose'&&scannedTransport===$('device-transport').value;
   const ids=choosing?[...$('devices').querySelectorAll('input:checked')].map(e=>e.value):null;
-  if(choosing&&(!ids.length||ids.length>2))throw new Error('請勾選 1～2 台 iPhone；兩台將同步控制。');
+  if(choosing&&(!ids.length||ids.length>3))throw new Error('請勾選 1～3 台 iPhone；所選手機將同步控制。');
   scannedTransport=$('device-transport').value;
   const wifiChoice=$('wifi-device').value,ipMode=$('wifi-ip-mode').value;
   await act('auto-connect',{transport:scannedTransport,...(ids?{ids}:{}),...(scannedTransport==='Network'?{ip_mode:ipMode,host:ipMode==='manual'?$('wifi-ip').value.trim():null,wifi_id:wifiChoice&&wifiChoice!=='__new__'?wifiChoice:null,wifi_new:wifiChoice==='__new__'}:{})});
@@ -350,7 +371,7 @@ bind('phone-delete-confirm',async()=>{
 });
 $('wifi-ip-mode').addEventListener('change',()=>{resetDeviceChoice();$('wifi-manual-ip').hidden=$('wifi-ip-mode').value!=='manual';});
 $('wifi-ip').addEventListener('input',resetDeviceChoice);
-$('devices').addEventListener('change',event=>{if($('devices').querySelectorAll('input:checked').length>2){event.target.checked=false;toast('最多同步控制兩台 iPhone。',true);}});
+$('devices').addEventListener('change',event=>{if($('devices').querySelectorAll('input:checked').length>3){event.target.checked=false;toast('最多同步控制三台 iPhone。',true);}});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
 Promise.all([api('state'),api('library'),api('route')]).then(([s,l,r])=>{points=r.points;routeMeta=r.meta;routeRevision=s.route_revision;library=l;render(s);select(s.position);map.setView(s.position,16,{animate:false});drawRoute();renderLibrary();}).catch(e=>toast('啟動失敗：'+e.message,true));
 setInterval(refresh,750);
