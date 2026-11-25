@@ -141,3 +141,7 @@
 .danger-button{color:#984b37;border-color:#cfaea2}
 
 #selection-help.applied{color:#2d5947;font-weight:600;font-size:12px}
+
+.external-map-links{display:grid;gap:8px}.external-map-links .button{justify-content:center;min-height:40px;text-decoration:none}
+
+.joystick-lock-controls{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:10px}.joystick-lock-controls label{display:flex;align-items:center;gap:6px;margin:0;font-size:12px}.joystick-lock-controls button{min-height:32px;padding:5px 10px;font-size:12px}

@@ -421,8 +421,8 @@ class Engine:
             strength = data.get('strength', 1)
             if any(isinstance(x, bool) or not isinstance(x, (int, float)) or not math.isfinite(x) for x in (bearing, speed, strength)):
                 raise ValueError('搖桿參數不正確。')
-            if not 0 <= bearing < 360 or not 0.5 <= speed <= 30 or not 0 < strength <= 1:
-                raise ValueError('搖桿速度須介於 0.5～30 km/h。')
+            if not 0 <= bearing < 360 or not 0.5 <= speed <= 100 or not 0 < strength <= 1:
+                raise ValueError('搖桿速度須介於 0.5～100 km/h。')
             # One bounded step per request; no autonomous movement or queued loop.
             await self._apply(destination(self.position, bearing, speed / 3.6 * 0.2 * strength))
             self.play_route = None

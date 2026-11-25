@@ -157,6 +157,7 @@ function render(s){
   }
   const stickDisabled=running||(isDevice&&!s.connected)||s.connection_phase==='connecting';
   $('joystick').setAttribute('aria-disabled',String(stickDisabled));
+  $('joystick-lock').disabled=stickDisabled;
   if(stickDisabled)stopJoystick();
   const connecting=s.connection_phase==='connecting';
   $('connect').disabled=connecting||s.connected||running;
@@ -274,6 +275,7 @@ bind('select-mode',()=>setDrawing(false));bind('draw-mode',()=>{tab('route');set
 bind('center',()=>map.setView(state.position,Math.max(map.getZoom(),16)));
 bind('fit',()=>{if(points.length)map.fitBounds(line.getBounds(),{padding:[45,45],maxZoom:17});});
 bind('go',async()=>{
+  stopJoystick();
   resetApplyFeedback();
   const p=coordinate($('coordinates').value);
   $('selection-help').textContent='正在套用座標…';
@@ -341,7 +343,7 @@ bind('connect',async()=>{
   const wifiChoice=$('wifi-device').value,ipMode=$('wifi-ip-mode').value;
   await act('auto-connect',{transport:scannedTransport,...(ids?{ids}:{}),...(scannedTransport==='Network'?{ip_mode:ipMode,host:ipMode==='manual'?$('wifi-ip').value.trim():null,wifi_id:wifiChoice&&wifiChoice!=='__new__'?wifiChoice:null,wifi_new:wifiChoice==='__new__'}:{})});
 });
-bind('disconnect',()=>act('disconnect'));
+bind('disconnect',()=>{stopJoystick();return act('disconnect');});
 function resetDeviceChoice(){scannedTransport=null;$('devices').querySelectorAll('input').forEach(e=>e.checked=false);$('devices').hidden=true;}
 $('device-transport').addEventListener('change',()=>{resetDeviceChoice();$('wifi-ip-row').hidden=$('device-transport').value!=='Network';});
 $('wifi-device').addEventListener('change',()=>{resetDeviceChoice();const profile=(state.wifi_devices||[]).find(d=>d.id===$('wifi-device').value);$('wifi-ip').value=profile?.host||'';renderPhoneActions();});
@@ -412,18 +414,20 @@ bind('set-home',async()=>{
   toast('住家已設定；沒有移動手機。');
 });
 bind('go-home',async()=>{
+  stopJoystick();
   const result=await act('go-home');
   select(result.position,true);
   toast(result.message);
 });
 
-let stickVector=null,stickPointer=null,stickPending=false,stickTimer=null,stickEpoch=0;
+let stickVector=null,stickPointer=null,stickPending=false,stickTimer=null;
 const stickKeys=new Set();
 function stopJoystick(){
-  stickVector=null;stickPointer=null;stickKeys.clear();stickEpoch++;
+  stickVector=null;stickPointer=null;stickKeys.clear();
   clearTimeout(stickTimer);stickTimer=null;
   $('joystick-knob').style.transform='translate(0px,0px)';
-  $('joystick-status').textContent='放開即停';
+  $('joystick-stop').disabled=true;
+  $('joystick-status').textContent=$('joystick-lock').checked?'等待指定方向':'放開即停';
 }
 function setStick(x,y){
   if($('joystick').getAttribute('aria-disabled')==='true')return;
@@ -433,13 +437,14 @@ function setStick(x,y){
   const strength=Math.min(1,length/radius);
   stickVector=strength<0.12?null:{bearing:(Math.atan2(x,-y)*180/Math.PI+360)%360,strength};
   $('joystick-status').textContent=stickVector?'移動中':'中心停留';
+  $('joystick-stop').disabled=!stickVector;
   if(stickVector&&!stickPending&&!stickTimer)sendStick();
 }
 async function sendStick(){
   stickTimer=null;
   if(!stickVector||stickPending)return;
-  const speed=Number($('joystick-speed').value),epoch=stickEpoch;
-  if(!Number.isFinite(speed)||speed<0.5||speed>30){stopJoystick();toast('搖桿速度須介於 0.5～30 km/h。',true);return;}
+  const speed=Number($('joystick-speed').value);
+  if(!Number.isFinite(speed)||speed<0.5||speed>100){stopJoystick();toast('搖桿速度須介於 0.5～100 km/h。',true);return;}
   stickPending=true;
   const started=performance.now();
   try{const result=await api('joystick',{...stickVector,speed});render(result);}
@@ -449,10 +454,21 @@ async function sendStick(){
 function pointStick(e){const rect=$('joystick').getBoundingClientRect();setStick(e.clientX-rect.left-rect.width/2,e.clientY-rect.top-rect.height/2);}
 $('joystick').addEventListener('pointerdown',e=>{if(e.button!==0||stickPointer!==null||$('joystick').getAttribute('aria-disabled')==='true')return;e.preventDefault();stickPointer=e.pointerId;$('joystick').setPointerCapture(e.pointerId);pointStick(e);});
 $('joystick').addEventListener('pointermove',e=>{if(e.pointerId===stickPointer)pointStick(e);});
-for(const name of ['pointerup','pointercancel','lostpointercapture'])$('joystick').addEventListener(name,stopJoystick);
+function releaseStick(){
+  stickPointer=null;
+  if(!$('joystick-lock').checked||!stickVector){stopJoystick();return;}
+  stickVector={...stickVector,strength:1};
+  $('joystick-status').textContent='方向已鎖定';
+}
+$('joystick').addEventListener('pointerup',e=>{if(e.pointerId===stickPointer)releaseStick();});
+for(const name of ['pointercancel','lostpointercapture']){
+  $('joystick').addEventListener(name,e=>{if(e.pointerId===stickPointer)stopJoystick();});
+}
+$('joystick-lock').addEventListener('change',stopJoystick);
+$('joystick-stop').addEventListener('click',stopJoystick);
 $('joystick').addEventListener('keydown',e=>{if(!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key))return;e.preventDefault();stickKeys.add(e.key);setStick((+stickKeys.has('ArrowRight')-+stickKeys.has('ArrowLeft'))*60,(+stickKeys.has('ArrowDown')-+stickKeys.has('ArrowUp'))*60);});
-$('joystick').addEventListener('keyup',e=>{if(!e.key.startsWith('Arrow'))return;e.preventDefault();stickKeys.delete(e.key);if(!stickKeys.size)stopJoystick();else setStick((+stickKeys.has('ArrowRight')-+stickKeys.has('ArrowLeft'))*60,(+stickKeys.has('ArrowDown')-+stickKeys.has('ArrowUp'))*60);});
-$('joystick').addEventListener('blur',stopJoystick);
+$('joystick').addEventListener('keyup',e=>{if(!e.key.startsWith('Arrow'))return;e.preventDefault();stickKeys.delete(e.key);if(!stickKeys.size)releaseStick();else setStick((+stickKeys.has('ArrowRight')-+stickKeys.has('ArrowLeft'))*60,(+stickKeys.has('ArrowDown')-+stickKeys.has('ArrowUp'))*60);});
+$('joystick').addEventListener('blur',()=>{if(stickPointer!==null||stickKeys.size)stopJoystick();});
 window.addEventListener('blur',stopJoystick);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopJoystick();});
 for(const [from,to] of [['joystick-speed','joystick-range'],['joystick-range','joystick-speed']])$(from).addEventListener('input',()=>{$(to).value=$(from).value;});

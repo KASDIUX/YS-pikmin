@@ -2,9 +2,11 @@
 
 Windows 上的 iPhone GPS 路線工作台，以獨立桌面視窗操作地圖、路線、方向搖桿與分類收藏。
 
+> **v0.7.18** 將方向搖桿上限提高至 100 km/h，新增方向鎖定，並提供菇立自強與純點列表的直接連結。
+
 > **v0.7.15** 支援最多三台 iPhone 同步控制；套用座標時優先顯示目前位置，並分別提示手機傳送成功、預覽套用或失敗。
 
-**主程式 v0.7.15** ｜ **獨立開發者模式工具 v1.0.0**
+**主程式 v0.7.18** ｜ **獨立開發者模式工具 v1.0.0**
 
 [系統需求](#系統需求) · [首次使用](#首次使用) · [功能說明](#功能說明) · [更新與資料保留](#更新與資料保留) · [常見問題](#常見問題) · [版本更新紀錄](CHANGELOG.md)
 
@@ -12,7 +14,7 @@ Windows 上的 iPhone GPS 路線工作台，以獨立桌面視窗操作地圖、
 
 | 項目 | 下載 | 用途 |
 | --- | --- | --- |
-| 主程式 v0.7.15 | [Windows x64 ZIP](https://github.com/KASDIUX/YS-pikmin/releases/download/v0.7.15/YS-pikmin-v0.7.15-Windows-x64.zip) · [版本說明與校驗檔](https://github.com/KASDIUX/YS-pikmin/releases/tag/v0.7.15) | 地圖、路線、搖桿與 iPhone 連線 |
+| 主程式 v0.7.18 | [Windows x64 ZIP](https://github.com/KASDIUX/YS-pikmin/releases/download/v0.7.18/YS-pikmin-v0.7.18-Windows-x64.zip) · [版本說明與校驗檔](https://github.com/KASDIUX/YS-pikmin/releases/tag/v0.7.18) | 地圖、路線、搖桿與 iPhone 連線 |
 | 開發者模式工具 v1.0.0 | [Windows x64 ZIP](https://github.com/KASDIUX/YS-pikmin/releases/download/devmode-v1.0.0/YS-pikmin-DeveloperMode-v1.0.0-Windows-x64.zip) · [工具說明](DEVELOPER_MODE.md) | 顯示手機開發者模式選項、檢查是否已開啟 |
 
 > 一般使用者請下載 **Windows-x64.zip**。「Source code」是原始碼，沒有可直接雙擊的打包主程式。建議使用上表最新版；歷次更新內容見 [版本更新紀錄](CHANGELOG.md)，原始碼歷史與標籤仍保留。
@@ -89,11 +91,13 @@ Pikmin launch.exe
 
 ## 功能說明
 
-### 外部菇圖選點（v0.7.15）
+### 外部菇圖
 
-在「選擇位置」按「外部菇圖・貼上座標」，開啟 [菇立自強菇圖](https://mushroom.pimiayy.com/)，並在網站自行登入。篩選大元素菇或巨大活動菇，依網站的正常操作複製單筆座標，再貼回程式。
+在「選擇位置」點「開啟菇立自強菇圖」，會直接在外部瀏覽器開啟網站，不再顯示貼上座標或收藏視窗。
 
-「在地圖選點」只標記選定位置；「選點並收藏」會開啟收藏視窗，預填名稱並選取菇點分類。確認後仍須按主畫面的「套用」，才會更新預覽或手機位置。網站的菇點狀態、複製額度與登入規則以網站顯示為準；此入口沒有自動載入全部菇點或即時追蹤人數。
+### 純點列表
+
+在「選擇位置」點「開啟純點列表」，會直接在外部瀏覽器開啟 TalllKai 純點列表。
 
 ### 多裝置同步（最多三台）
 
